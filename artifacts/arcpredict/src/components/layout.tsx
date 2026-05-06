@@ -2,14 +2,12 @@ import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import { Activity, BarChart2, Plus, Trophy, Wallet } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useGetUser } from "@workspace/api-client-react";
+import { WalletConnect } from "@/components/wallet-connect";
+import { useAccount } from "wagmi";
 
 export function Layout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
-  const userId = 1;
-  const { data: user } = useGetUser(userId, {
-    query: { enabled: !!userId }
-  });
+  const { isConnected } = useAccount();
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col font-mono selection:bg-primary/30">
@@ -20,31 +18,23 @@ export function Layout({ children }: { children: ReactNode }) {
               <Activity className="h-5 w-5" />
               <span>ARC_PREDICT</span>
             </Link>
-            
+
             <nav className="hidden md:flex items-center gap-1">
               <NavItem href="/" icon={<BarChart2 className="w-4 h-4" />} label="Markets" active={location === "/"} />
               <NavItem href="/leaderboard" icon={<Trophy className="w-4 h-4" />} label="Leaderboard" active={location === "/leaderboard"} />
-              <NavItem href={`/portfolio/${userId}`} icon={<Wallet className="w-4 h-4" />} label="Portfolio" active={location.startsWith("/portfolio")} />
+              {isConnected && (
+                <NavItem href="/portfolio" icon={<Wallet className="w-4 h-4" />} label="Portfolio" active={location === "/portfolio"} />
+              )}
             </nav>
           </div>
 
           <div className="flex items-center gap-4">
-            <Link href="/markets/new" className="hidden md:flex items-center gap-2 text-xs font-semibold bg-secondary hover:bg-secondary/80 text-secondary-foreground px-3 py-1.5 rounded transition-colors">
-              <Plus className="w-3.5 h-3.5" /> CREATE MARKET
-            </Link>
-            {user ? (
-              <div className="flex items-center gap-3 border-l border-border pl-4">
-                <div className="text-right">
-                  <div className="text-xs text-muted-foreground uppercase tracking-wider">Balance</div>
-                  <div className="text-sm font-bold">${user.balance.toFixed(2)}</div>
-                </div>
-                <div className="h-8 w-8 rounded bg-primary/20 flex items-center justify-center text-primary font-bold text-xs uppercase border border-primary/30">
-                  {user.username.substring(0, 2)}
-                </div>
-              </div>
-            ) : (
-              <div className="h-8 w-24 bg-muted animate-pulse rounded" />
+            {isConnected && (
+              <Link href="/markets/new" className="hidden md:flex items-center gap-2 text-xs font-semibold bg-secondary hover:bg-secondary/80 text-secondary-foreground px-3 py-1.5 rounded transition-colors">
+                <Plus className="w-3.5 h-3.5" /> CREATE MARKET
+              </Link>
             )}
+            <WalletConnect />
           </div>
         </div>
       </header>
@@ -52,16 +42,20 @@ export function Layout({ children }: { children: ReactNode }) {
       <main className="flex-1 container mx-auto px-4 py-8">
         {children}
       </main>
+
+      <footer className="border-t border-border py-4 text-center text-xs text-muted-foreground font-mono">
+        ARC_PREDICT · Arc Testnet · Chain ID 5042002
+      </footer>
     </div>
   );
 }
 
-function NavItem({ href, icon, label, active }: { href: string, icon: ReactNode, label: string, active: boolean }) {
+function NavItem({ href, icon, label, active }: { href: string; icon: ReactNode; label: string; active: boolean }) {
   return (
     <Link href={href} className={cn(
       "flex items-center gap-2 px-3 py-2 rounded text-sm font-medium transition-colors uppercase tracking-wider",
-      active 
-        ? "text-primary bg-primary/10" 
+      active
+        ? "text-primary bg-primary/10"
         : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
     )}>
       {icon}
