@@ -13,7 +13,7 @@ A blockchain-native prediction market platform on Arc Testnet where users connec
 
 - pnpm workspaces, Node.js 24, TypeScript 5.9
 - Frontend: React 19 + Vite, Tailwind CSS 4, TanStack Query, Wouter, shadcn/ui
-- Web3: wagmi v3 + viem v2, injected (MetaMask) connector
+- Web3: wagmi v3 + viem v2, @reown/appkit v1.8.19 (WalletConnect + injected wallets)
 - Chain: Arc Testnet (Chain ID: 5042002, RPC: https://rpc.testnet.arc.network)
 - Build: Vite (static, no backend calls)
 
@@ -38,6 +38,7 @@ A blockchain-native prediction market platform on Arc Testnet where users connec
 
 ## On-Chain Contracts (Arc Testnet)
 
+- **WalletConnect/AppKit** — `@reown/appkit` v1.8.19 + `@reown/appkit-adapter-wagmi`; project ID `75ee11fcb268a9ce1df27d9fe935cff2`; import `createAppKit` from `@reown/appkit/react` (NOT `@reown/appkit`) so `getAppKit(modal)` registers the React context
 - **MarketFactory** `0xF8073a17924A66097759f4c726725B8b063F5937`
   - `createMarket(string question, uint256 endTime)` → deploys market
   - `getAllMarkets()` → `address[]`, `getMarketCount()` → `uint256`

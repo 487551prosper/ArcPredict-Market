@@ -1,13 +1,13 @@
-import { useAccount, useConnect, useDisconnect, useChainId, useSwitchChain } from "wagmi";
+import { useAppKit } from "@reown/appkit/react";
+import { useAccount, useDisconnect, useChainId, useSwitchChain } from "wagmi";
 import { arcTestnet } from "@/lib/chain";
 import { Wallet, LogOut, AlertTriangle } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { useUsdcBalance } from "@/hooks/useChain";
 
 export function WalletConnect() {
+  const { open } = useAppKit();
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
-  const { connect, connectors, isPending } = useConnect();
   const { disconnect } = useDisconnect();
   const { switchChain } = useSwitchChain();
   const { formatted: usdcBalance } = useUsdcBalance(address);
@@ -17,12 +17,11 @@ export function WalletConnect() {
   if (!isConnected) {
     return (
       <button
-        onClick={() => connect({ connector: connectors[0] })}
-        disabled={isPending}
-        className="flex items-center gap-2 bg-primary text-primary-foreground px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wider hover:bg-primary/90 transition-colors disabled:opacity-50"
+        onClick={() => open()}
+        className="flex items-center gap-2 bg-primary text-primary-foreground px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wider hover:bg-primary/90 transition-colors"
       >
         <Wallet className="w-3.5 h-3.5" />
-        {isPending ? "Connecting..." : "Connect Wallet"}
+        Connect Wallet
       </button>
     );
   }
@@ -48,9 +47,13 @@ export function WalletConnect() {
         </div>
       </div>
       <div className="flex items-center gap-2">
-        <div className="h-8 w-8 rounded bg-primary/20 flex items-center justify-center text-primary font-bold text-xs border border-primary/30">
+        <button
+          onClick={() => open({ view: "Account" })}
+          className="h-8 w-8 rounded bg-primary/20 flex items-center justify-center text-primary font-bold text-xs border border-primary/30 hover:bg-primary/30 transition-colors"
+          title="Wallet details"
+        >
           {address?.slice(2, 4).toUpperCase()}
-        </div>
+        </button>
         <div className="hidden md:flex flex-col">
           <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Arc Testnet</span>
           <span className="text-xs font-mono">
