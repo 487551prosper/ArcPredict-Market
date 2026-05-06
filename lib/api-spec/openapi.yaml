@@ -3,20 +3,28 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: ArcPredict Prediction Market API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: markets
+    description: Prediction market operations
+  - name: bets
+    description: Betting operations
+  - name: users
+    description: User operations
+  - name: stats
+    description: Statistics and leaderboard
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,13 +32,484 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /markets:
+    get:
+      operationId: listMarkets
+      tags: [markets]
+      summary: List all markets
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [open, closed, resolved]
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        "200":
+          description: List of markets
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarketList"
+    post:
+      operationId: createMarket
+      tags: [markets]
+      summary: Create a new market
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateMarketBody"
+      responses:
+        "201":
+          description: Created market
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Market"
+
+  /markets/trending:
+    get:
+      operationId: getTrendingMarkets
+      tags: [markets]
+      summary: Get trending markets by recent bet volume
+      responses:
+        "200":
+          description: Trending markets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Market"
+
+  /markets/stats:
+    get:
+      operationId: getMarketStats
+      tags: [stats]
+      summary: Get overall platform statistics
+      responses:
+        "200":
+          description: Platform stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlatformStats"
+
+  /markets/{marketId}:
+    get:
+      operationId: getMarket
+      tags: [markets]
+      summary: Get a single market
+      parameters:
+        - name: marketId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Market detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarketDetail"
+        "404":
+          description: Not found
+
+  /markets/{marketId}/resolve:
+    post:
+      operationId: resolveMarket
+      tags: [markets]
+      summary: Resolve a market with an outcome
+      parameters:
+        - name: marketId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResolveMarketBody"
+      responses:
+        "200":
+          description: Resolved market
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Market"
+
+  /markets/{marketId}/bets:
+    get:
+      operationId: getMarketBets
+      tags: [bets]
+      summary: Get all bets for a market
+      parameters:
+        - name: marketId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of bets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Bet"
+    post:
+      operationId: placeBet
+      tags: [bets]
+      summary: Place a bet on a market
+      parameters:
+        - name: marketId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlaceBetBody"
+      responses:
+        "201":
+          description: Placed bet
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Bet"
+
+  /users:
+    get:
+      operationId: listUsers
+      tags: [users]
+      summary: List all users
+      responses:
+        "200":
+          description: Users list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+    post:
+      operationId: createUser
+      tags: [users]
+      summary: Create a user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserBody"
+      responses:
+        "201":
+          description: Created user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users/{userId}:
+    get:
+      operationId: getUser
+      tags: [users]
+      summary: Get a user
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: User
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users/{userId}/portfolio:
+    get:
+      operationId: getUserPortfolio
+      tags: [users]
+      summary: Get user portfolio summary with positions and P&L
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: User portfolio
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserPortfolio"
+
+  /leaderboard:
+    get:
+      operationId: getLeaderboard
+      tags: [stats]
+      summary: Get top users ranked by profit
+      responses:
+        "200":
+          description: Leaderboard
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LeaderboardEntry"
+
 components:
   schemas:
     HealthStatus:
       type: object
+      required: [status]
       properties:
         status:
           type: string
-      required:
-        - status
 
+    Market:
+      type: object
+      required: [id, title, description, category, status, yesPrice, noPrice, totalVolume, createdAt, closesAt, creatorId]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+        status:
+          type: string
+          enum: [open, closed, resolved]
+        outcome:
+          type: string
+          enum: [yes, no]
+          nullable: true
+        yesPrice:
+          type: number
+          description: Current YES probability (0-1)
+        noPrice:
+          type: number
+          description: Current NO probability (0-1)
+        totalVolume:
+          type: number
+        betCount:
+          type: integer
+        createdAt:
+          type: string
+        closesAt:
+          type: string
+        creatorId:
+          type: integer
+
+    MarketDetail:
+      allOf:
+        - $ref: "#/components/schemas/Market"
+        - type: object
+          properties:
+            recentBets:
+              type: array
+              items:
+                $ref: "#/components/schemas/Bet"
+            creator:
+              $ref: "#/components/schemas/User"
+
+    MarketList:
+      type: object
+      required: [markets, total]
+      properties:
+        markets:
+          type: array
+          items:
+            $ref: "#/components/schemas/Market"
+        total:
+          type: integer
+
+    CreateMarketBody:
+      type: object
+      required: [title, description, category, closesAt, creatorId]
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+        closesAt:
+          type: string
+        creatorId:
+          type: integer
+
+    ResolveMarketBody:
+      type: object
+      required: [outcome]
+      properties:
+        outcome:
+          type: string
+          enum: [yes, no]
+
+    Bet:
+      type: object
+      required: [id, marketId, userId, position, amount, price, payout, status, createdAt]
+      properties:
+        id:
+          type: integer
+        marketId:
+          type: integer
+        userId:
+          type: integer
+        username:
+          type: string
+        position:
+          type: string
+          enum: [yes, no]
+        amount:
+          type: number
+        price:
+          type: number
+        payout:
+          type: number
+          nullable: true
+        status:
+          type: string
+          enum: [pending, won, lost]
+        createdAt:
+          type: string
+
+    PlaceBetBody:
+      type: object
+      required: [userId, position, amount]
+      properties:
+        userId:
+          type: integer
+        position:
+          type: string
+          enum: [yes, no]
+        amount:
+          type: number
+
+    User:
+      type: object
+      required: [id, username, balance, totalBets, totalWins, createdAt]
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        avatarUrl:
+          type: string
+          nullable: true
+        balance:
+          type: number
+        totalBets:
+          type: integer
+        totalWins:
+          type: integer
+        createdAt:
+          type: string
+
+    CreateUserBody:
+      type: object
+      required: [username]
+      properties:
+        username:
+          type: string
+        avatarUrl:
+          type: string
+
+    UserPortfolio:
+      type: object
+      required: [user, totalInvested, totalPayout, netPnl, winRate, positions]
+      properties:
+        user:
+          $ref: "#/components/schemas/User"
+        totalInvested:
+          type: number
+        totalPayout:
+          type: number
+        netPnl:
+          type: number
+        winRate:
+          type: number
+        positions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Bet"
+
+    PlatformStats:
+      type: object
+      required: [totalMarkets, openMarkets, totalBets, totalVolume, totalUsers, categoryBreakdown]
+      properties:
+        totalMarkets:
+          type: integer
+        openMarkets:
+          type: integer
+        totalBets:
+          type: integer
+        totalVolume:
+          type: number
+        totalUsers:
+          type: integer
+        categoryBreakdown:
+          type: array
+          items:
+            type: object
+            required: [category, count, volume]
+            properties:
+              category:
+                type: string
+              count:
+                type: integer
+              volume:
+                type: number
+
+    LeaderboardEntry:
+      type: object
+      required: [rank, userId, username, netPnl, totalBets, winRate]
+      properties:
+        rank:
+          type: integer
+        userId:
+          type: integer
+        username:
+          type: string
+        avatarUrl:
+          type: string
+          nullable: true
+        netPnl:
+          type: number
+        totalBets:
+          type: integer
+        winRate:
+          type: number
+        balance:
+          type: number
