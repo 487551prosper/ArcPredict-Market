@@ -1,69 +1,93 @@
-import { createAppKit } from '@reown/appkit/react'
-import { WagmiProvider } from 'wagmi'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { WagmiAdapter } from '@reown/appkit-adapter-wagmi'
-import { defineChain } from 'viem'
+import { useState, useEffect } from 'react'
 
-const arcTestnet = defineChain({
-  id: 5042002,
-  name: 'Arc Testnet',
-  nativeCurrency: {
-    decimals: 6,
-    name: 'USDC',
-    symbol: 'USDC',
-  },
-  rpcUrls: {
-    default: {
-      http: ['https://rpc.testnet.arc.network'],
-    },
-  },
-  blockExplorers: {
-    default: {
-      name: 'ArcScan',
-      url: 'https://testnet.arcscan.app',
-    },
-  },
-})
-
-const projectId = '75ee11fcb268a9ce1df27d9fe935cff2'
-
-const metadata = {
-  name: 'ArcPredict',
-  description: 'Prediction Market on Arc Testnet',
-  url: 'https://arc-predict-market--ezeh1595.replit.app',
-  icons: ['https://avatars.githubusercontent.com/u/179229932'],
-}
-
-const networks = [arcTestnet]
-
-const wagmiAdapter = new WagmiAdapter({
-  networks,
-  projectId,
-})
-
-createAppKit({
-  adapters: [wagmiAdapter],
-  networks,
-  projectId,
-  metadata,
-  features: {
-    analytics: true,
-  },
-})
-
-const queryClient = new QueryClient()
-
-export function WalletConnect({ children }: { children: React.ReactNode }) {
-  return (
-    <WagmiProvider config={wagmiAdapter.wagmiConfig}>
-      <QueryClientProvider client={queryClient}>
-        {children}
-        <appkit-button />
-      </QueryClientProvider>
-    </WagmiProvider>
-  )
+declare global {
+  interface Window {
+    ethereum?: any
+  }
 }
 
 export function ConnectButton() {
-  return <appkit-button />
+  const [address, setAddress] = useState<string | null>(null)
+  const [connecting, setConnecting] = useState(false)
+
+  useEffect(() => {
+    if (window.ethereum?.selectedAddress) {
+      setAddress(window.ethereum.selectedAddress)
+    }
+  }, [])
+
+  async function connect() {
+    setConnecting(true)
+    try {
+      if (window.ethereum) {
+        const accounts = await window.ethereum.request({
+          method: 'eth_requestAccounts'
+        })
+        if (accounts[0]) {
+          setAddress(accounts[0])
+          await window.ethereum.request({
+            method: 'wallet_addEthereumChain',
+            params: [{
+              chainId: '0x4D0192',
+              chainName: 'Arc Testnet',
+              nativeCurrency: {
+                name: 'USDC',
+                symbol: 'USDC',
+                decimals: 6
+              },
+              rpcUrls: ['https://rpc.testnet.arc.network'],
+              blockExplorerUrls: ['https://testnet.arcscan.app']
+            }]
+          })
+        }
+      } else {
+        // No wallet detected - open MetaMask deep link
+        const currentUrl = encodeURIComponent(window.location.href)
+        window.location.href = `https://metamask.app.link/dapp/${window.location.host}`
+      }
+    } catch (err) {
+      console.error(err)
+    }
+    setConnecting(false)
+  }
+
+  if (address) {
+    return (
+      <button style={{
+        background: '#00ff88',
+        color: '#000',
+        border: 'none',
+        padding: '8px 16px',
+        borderRadius: '4px',
+        cursor: 'pointer',
+        fontFamily: 'monospace',
+        fontWeight: 'bold'
+      }}>
+        {address.slice(0, 6)}...{address.slice(-4)}
+      </button>
+    )
+  }
+
+  return (
+    <button
+      onClick={connect}
+      disabled={connecting}
+      style={{
+        background: 'transparent',
+        color: '#00ff88',
+        border: '1px solid #00ff88',
+        padding: '8px 16px',
+        borderRadius: '4px',
+        cursor: 'pointer',
+        fontFamily: 'monospace',
+        fontWeight: 'bold'
+      }}
+    >
+      {connecting ? 'CONNECTING...' : 'CONNECT WALLET'}
+    </button>
+  )
+}
+
+export function WalletConnect({ children }: { children: React.ReactNode }) {
+  return <>{children}</>
 }
