@@ -1,73 +1,69 @@
-import { useAppKit } from "@reown/appkit/react";
-import { useAccount, useDisconnect, useChainId, useSwitchChain } from "wagmi";
-import { arcTestnet } from "@/lib/chain";
-import { Wallet, LogOut, AlertTriangle } from "lucide-react";
-import { useUsdcBalance } from "@/hooks/useChain";
+import { createAppKit } from '@reown/appkit/react'
+import { WagmiProvider } from 'wagmi'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { WagmiAdapter } from '@reown/appkit-adapter-wagmi'
+import { defineChain } from 'viem'
 
-export function WalletConnect() {
-  const { open } = useAppKit();
-  const { address, isConnected } = useAccount();
-  const chainId = useChainId();
-  const { disconnect } = useDisconnect();
-  const { switchChain } = useSwitchChain();
-  const { formatted: usdcBalance } = useUsdcBalance(address);
+const arcTestnet = defineChain({
+  id: 5042002,
+  name: 'Arc Testnet',
+  nativeCurrency: {
+    decimals: 6,
+    name: 'USDC',
+    symbol: 'USDC',
+  },
+  rpcUrls: {
+    default: {
+      http: ['https://rpc.testnet.arc.network'],
+    },
+  },
+  blockExplorers: {
+    default: {
+      name: 'ArcScan',
+      url: 'https://testnet.arcscan.app',
+    },
+  },
+})
 
-  const isWrongChain = isConnected && chainId !== arcTestnet.id;
+const projectId = '75ee11fcb268a9ce1df27d9fe935cff2'
 
-  if (!isConnected) {
-    return (
-      <button
-        onClick={() => open()}
-        className="flex items-center gap-2 bg-primary text-primary-foreground px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wider hover:bg-primary/90 transition-colors"
-      >
-        <Wallet className="w-3.5 h-3.5" />
-        Connect Wallet
-      </button>
-    );
-  }
+const metadata = {
+  name: 'ArcPredict',
+  description: 'Prediction Market on Arc Testnet',
+  url: 'https://arc-predict-market--ezeh1595.replit.app',
+  icons: ['https://avatars.githubusercontent.com/u/179229932'],
+}
 
-  if (isWrongChain) {
-    return (
-      <button
-        onClick={() => switchChain({ chainId: arcTestnet.id })}
-        className="flex items-center gap-2 border border-yellow-500/50 bg-yellow-500/10 text-yellow-400 px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wider hover:bg-yellow-500/20 transition-colors"
-      >
-        <AlertTriangle className="w-3.5 h-3.5" />
-        Wrong Network
-      </button>
-    );
-  }
+const networks = [arcTestnet]
 
+const wagmiAdapter = new WagmiAdapter({
+  networks,
+  projectId,
+})
+
+createAppKit({
+  adapters: [wagmiAdapter],
+  networks,
+  projectId,
+  metadata,
+  features: {
+    analytics: true,
+  },
+})
+
+const queryClient = new QueryClient()
+
+export function WalletConnect({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex items-center gap-3 border-l border-border pl-4">
-      <div className="text-right hidden sm:block">
-        <div className="text-[10px] text-muted-foreground uppercase tracking-wider">USDC Balance</div>
-        <div className="text-sm font-bold font-mono">
-          {usdcBalance != null ? `$${usdcBalance.toFixed(2)}` : "—"}
-        </div>
-      </div>
-      <div className="flex items-center gap-2">
-        <button
-          onClick={() => open({ view: "Account" })}
-          className="h-8 w-8 rounded bg-primary/20 flex items-center justify-center text-primary font-bold text-xs border border-primary/30 hover:bg-primary/30 transition-colors"
-          title="Wallet details"
-        >
-          {address?.slice(2, 4).toUpperCase()}
-        </button>
-        <div className="hidden md:flex flex-col">
-          <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Arc Testnet</span>
-          <span className="text-xs font-mono">
-            {address?.slice(0, 6)}…{address?.slice(-4)}
-          </span>
-        </div>
-        <button
-          onClick={() => disconnect()}
-          className="ml-1 p-1.5 rounded hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground"
-          title="Disconnect"
-        >
-          <LogOut className="w-3.5 h-3.5" />
-        </button>
-      </div>
-    </div>
-  );
+    <WagmiProvider config={wagmiAdapter.wagmiConfig}>
+      <QueryClientProvider client={queryClient}>
+        {children}
+        <appkit-button />
+      </QueryClientProvider>
+    </WagmiProvider>
+  )
+}
+
+export function ConnectButton() {
+  return <appkit-button />
 }
