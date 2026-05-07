@@ -96,18 +96,26 @@ async function fetchMarket(addr: `0x${string}`): Promise<ChainMarket | null> {
     if (!qRes || !etRes) return null;
 
     const [question]  = decodeAbiParameters([{ type: "string" }],   qRes);
-    const [endTime]   = decodeAbiParameters([{ type: "uint256" }],  etRes);
+    const [rawEndTime] = decodeAbiParameters([{ type: "uint256" }],  etRes);
     const totalYes    = tyRes ? (decodeAbiParameters([{ type: "uint256" }], tyRes)[0] as bigint) : 0n;
     const totalNo     = tnRes ? (decodeAbiParameters([{ type: "uint256" }], tnRes)[0] as bigint) : 0n;
     const yesToken    = ytRes ? (decodeAbiParameters([{ type: "address" }], ytRes)[0] as `0x${string}`) : "0x" as `0x${string}`;
     const noToken     = ntRes ? (decodeAbiParameters([{ type: "address" }], ntRes)[0] as `0x${string}`) : "0x" as `0x${string}`;
     const yesWon      = ywRes ? (decodeAbiParameters([{ type: "bool" }],    ywRes)[0] as boolean) : false;
 
+    // Normalize endTime to seconds. Some contracts erroneously store it in
+    // milliseconds. If the value is beyond year 2100 in seconds we treat it
+    // as milliseconds and divide by 1000.
+    const YEAR_2100_SECS = 4102444800n;
+    const endTime = (rawEndTime as bigint) > YEAR_2100_SECS
+      ? (rawEndTime as bigint) / 1000n
+      : (rawEndTime as bigint);
+
     const { yesPrice, noPrice } = computePrices(totalYes, totalNo);
     return {
       address: addr,
       question:    question as string,
-      endTime:     endTime as bigint,
+      endTime,
       yesToken,
       noToken,
       totalYes,
