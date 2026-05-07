@@ -1,6 +1,6 @@
 import { ReactNode, useState, useEffect, useCallback } from "react";
 import { Link, useLocation } from "wouter";
-import { Activity, BarChart2, Plus, Trophy, Wallet, LogOut, AlertTriangle, ChevronDown } from "lucide-react";
+import { Activity, BarChart2, Plus, Settings, Trophy, Wallet, LogOut, AlertTriangle, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const ARC_CHAIN_ID = 5042002;
@@ -233,6 +233,7 @@ export function Layout({ children }: { children: ReactNode }) {
               <NavItem href="/" icon={<BarChart2 className="w-4 h-4" />} label="Markets" active={location === "/"} />
               <NavItem href="/leaderboard" icon={<Trophy className="w-4 h-4" />} label="Leaderboard" active={location === "/leaderboard"} />
               <NavItem href="/portfolio" icon={<Wallet className="w-4 h-4" />} label="Portfolio" active={location === "/portfolio"} />
+              <NavItem href="/settings" icon={<Settings className="w-4 h-4" />} label="Settings" active={location === "/settings"} />
             </nav>
           </div>
           <div className="flex items-center gap-2 shrink-0">

@@ -1,12 +1,13 @@
 import { useCreateMarket } from "@/hooks/useChain";
 import { useState, useEffect } from "react";
 import { useLocation, Link } from "wouter";
-import { ArrowLeft, Plus, AlertCircle } from "lucide-react";
+import { ArrowLeft, Plus, AlertCircle, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useWallet } from "@/lib/wallet";
+import { getSettings } from "./settings";
 
 const CATEGORIES = ["Economics", "Technology", "Crypto", "Science", "Politics", "Sports", "Entertainment", "Other"];
 
@@ -14,6 +15,7 @@ export function CreateMarket() {
   const [, setLocation] = useLocation();
   const { isConnected } = useWallet();
   const { createMarket, isPending, isSuccess, txHash, error } = useCreateMarket();
+  const settings = getSettings();
 
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState("Technology");
@@ -49,6 +51,18 @@ export function CreateMarket() {
   const minDate = new Date();
   minDate.setDate(minDate.getDate() + 1);
   const minDateStr = minDate.toISOString().split("T")[0];
+
+  if (!settings.publicMarketCreation) {
+    return (
+      <div className="max-w-2xl mx-auto py-20 text-center">
+        <ShieldCheck className="w-12 h-12 mx-auto mb-4 text-muted-foreground/40" />
+        <h2 className="text-lg font-bold uppercase tracking-wider mb-2">Admin Only</h2>
+        <p className="text-sm text-muted-foreground mb-2">Market creation is currently restricted to admins.</p>
+        <p className="text-xs text-muted-foreground mb-6">You can change this in <Link href="/settings" className="text-primary hover:underline">Settings</Link>.</p>
+        <Link href="/" className="text-primary text-xs uppercase tracking-wider font-semibold hover:underline">Back to Markets</Link>
+      </div>
+    );
+  }
 
   if (!isConnected) {
     return (

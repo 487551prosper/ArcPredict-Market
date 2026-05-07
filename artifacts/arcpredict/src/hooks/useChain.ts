@@ -371,6 +371,59 @@ export function useCreateMarket() {
   return { createMarket, isPending, isSuccess, txHash, error };
 }
 
+export function useSellTokens(marketAddress: `0x${string}` | undefined) {
+  const { address } = useWallet();
+  const qc = useQueryClient();
+  const [isPending, setIsPending] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const sell = async (
+    isYes: boolean,
+    tokenAddress: `0x${string}`,
+    tokenAmount: bigint
+  ) => {
+    if (!address || !marketAddress) return;
+    setError(null);
+    setIsSuccess(false);
+    setIsPending(true);
+
+    try {
+      const wc = makeWalletClient(address);
+
+      // Approve the YES/NO token to be spent by the market contract
+      const approveTx = await wc.writeContract({
+        address: tokenAddress,
+        abi: ERC20_ABI,
+        functionName: "approve",
+        args: [marketAddress, tokenAmount],
+      });
+      await publicClient.waitForTransactionReceipt({ hash: approveTx });
+
+      // Call sell on the market contract
+      const hash = await wc.writeContract({
+        address: marketAddress,
+        abi: MARKET_ABI,
+        functionName: "sell",
+        args: [isYes, tokenAmount],
+      });
+      await publicClient.waitForTransactionReceipt({ hash });
+      setIsSuccess(true);
+
+      qc.invalidateQueries({ queryKey: ["market", marketAddress] });
+      qc.invalidateQueries({ queryKey: ["usdc", "balance", address] });
+      qc.invalidateQueries({ queryKey: ["token", tokenAddress] });
+      qc.invalidateQueries({ queryKey: ["markets", "all"] });
+    } catch (e: any) {
+      setError(e?.shortMessage ?? e?.message ?? "Transaction failed");
+    } finally {
+      setIsPending(false);
+    }
+  };
+
+  return { sell, isPending, isSuccess, error };
+}
+
 export function useClaimWinnings(marketAddress: `0x${string}` | undefined) {
   const { address } = useWallet();
   const qc = useQueryClient();

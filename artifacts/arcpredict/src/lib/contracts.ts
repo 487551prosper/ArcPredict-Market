@@ -139,6 +139,16 @@ export const MARKET_ABI = [
     inputs: [],
     outputs: [],
   },
+  {
+    name: "sell",
+    type: "function",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "isYes", type: "bool" },
+      { name: "amount", type: "uint256" },
+    ],
+    outputs: [],
+  },
 ] as const;
 
 // ---- ERC20 ABI (for USDC + YES/NO tokens) ----

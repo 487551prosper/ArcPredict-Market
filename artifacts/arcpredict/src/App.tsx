@@ -8,6 +8,7 @@ import { MarketDetail } from "@/pages/market-detail";
 import { CreateMarket } from "@/pages/create-market";
 import { Leaderboard } from "@/pages/leaderboard";
 import { Portfolio } from "@/pages/portfolio";
+import { Settings_ } from "@/pages/settings";
 import NotFound from "@/pages/not-found";
 import { useEffect } from "react";
 import { WalletProvider } from "@/lib/wallet";
@@ -32,6 +33,7 @@ function Router() {
         <Route path="/markets/:address" component={MarketDetail} />
         <Route path="/leaderboard" component={Leaderboard} />
         <Route path="/portfolio" component={Portfolio} />
+        <Route path="/settings" component={Settings_} />
         <Route component={NotFound} />
       </Switch>
     </Layout>

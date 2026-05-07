@@ -1,7 +1,7 @@
 import { useParams, Link } from "wouter";
-import { useMarket, usePlaceBet, useClaimWinnings, useUsdcBalance, useTokenBalance } from "@/hooks/useChain";
+import { useMarket, usePlaceBet, useClaimWinnings, useUsdcBalance, useTokenBalance, useSellTokens } from "@/hooks/useChain";
 import { formatDistanceToNow, format } from "date-fns";
-import { Activity, ArrowLeft, CheckCircle2, XCircle, AlertCircle, ExternalLink, Clock } from "lucide-react";
+import { Activity, ArrowLeft, CheckCircle2, XCircle, AlertCircle, ExternalLink, Clock, DollarSign, TrendingDown, TrendingUp, X } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,12 +18,14 @@ export function MarketDetail() {
   const { market, isLoading } = useMarket(marketAddress);
   const { placeBet, isPending: betPending, isSuccess: betSuccess, error: betError } = usePlaceBet(marketAddress);
   const { claim, isPending: claimPending, isSuccess: claimSuccess, error: claimError } = useClaimWinnings(marketAddress);
+  const { sell, isPending: sellPending, isSuccess: sellSuccess, error: sellError } = useSellTokens(marketAddress);
   const { formatted: usdcBalance } = useUsdcBalance(userAddress);
   const { formatted: yesBalance, raw: yesRaw } = useTokenBalance(market?.yesToken, userAddress);
   const { formatted: noBalance, raw: noRaw } = useTokenBalance(market?.noToken, userAddress);
 
   const [position, setPosition] = useState<"yes" | "no">("yes");
   const [amount, setAmount] = useState("10");
+  const [cashOutModal, setCashOutModal] = useState<"yes" | "no" | null>(null);
 
   useEffect(() => {
     if (betSuccess) {
@@ -40,6 +42,14 @@ export function MarketDetail() {
     if (claimSuccess) toast.success("Winnings claimed!");
     if (claimError) toast.error(claimError);
   }, [claimSuccess, claimError]);
+
+  useEffect(() => {
+    if (sellSuccess) {
+      toast.success("Position cashed out successfully!");
+      setCashOutModal(null);
+    }
+    if (sellError) toast.error(sellError);
+  }, [sellSuccess, sellError]);
 
   if (isLoading) {
     return (
@@ -82,6 +92,18 @@ export function MarketDetail() {
   );
 
   const shortAddr = `${market.address.slice(0, 6)}…${market.address.slice(-4)}`;
+
+  // Cash out calculations
+  const yesCurrentValue = yesBalance != null && yesBalance > 0 ? yesBalance * market.yesPrice : 0;
+  const noCurrentValue = noBalance != null && noBalance > 0 ? noBalance * market.noPrice : 0;
+
+  const handleCashOut = async (side: "yes" | "no") => {
+    if (!market) return;
+    const tokenAddress = side === "yes" ? market.yesToken : market.noToken;
+    const tokenAmount = side === "yes" ? yesRaw : noRaw;
+    if (!tokenAmount || tokenAmount === 0n) return;
+    await sell(side === "yes", tokenAddress, tokenAmount);
+  };
 
   return (
     <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500">
@@ -167,23 +189,56 @@ export function MarketDetail() {
           {isConnected && (yesBalance != null || noBalance != null) && (
             <div className="border border-border rounded p-4 bg-secondary/20">
               <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3">Your Position</h3>
-              <div className="flex gap-6">
-                {yesBalance != null && yesBalance > 0 && (
-                  <div>
-                    <div className="text-[10px] text-muted-foreground uppercase tracking-wider">YES Tokens</div>
-                    <div className="text-lg font-bold text-market-yes font-mono">{yesBalance.toFixed(4)}</div>
-                  </div>
-                )}
-                {noBalance != null && noBalance > 0 && (
-                  <div>
-                    <div className="text-[10px] text-muted-foreground uppercase tracking-wider">NO Tokens</div>
-                    <div className="text-lg font-bold text-market-no font-mono">{noBalance.toFixed(4)}</div>
-                  </div>
-                )}
-                {yesBalance === 0 && noBalance === 0 && (
-                  <p className="text-xs text-muted-foreground">No position in this market yet.</p>
-                )}
-              </div>
+              {yesBalance === 0 && noBalance === 0 ? (
+                <p className="text-xs text-muted-foreground">No position in this market yet.</p>
+              ) : (
+                <div className="space-y-3">
+                  {yesBalance != null && yesBalance > 0 && (
+                    <div className="flex items-center justify-between gap-4 flex-wrap">
+                      <div>
+                        <div className="text-[10px] text-muted-foreground uppercase tracking-wider">YES Tokens</div>
+                        <div className="text-lg font-bold text-market-yes font-mono">{yesBalance.toFixed(4)}</div>
+                        <div className="text-xs text-muted-foreground font-mono mt-0.5">
+                          ≈ ${yesCurrentValue.toFixed(2)} USDC at current price
+                        </div>
+                      </div>
+                      {isOpen && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setCashOutModal("yes")}
+                          className="border-market-yes/40 text-market-yes hover:bg-market-yes/10 hover:border-market-yes font-bold uppercase tracking-wider text-xs"
+                        >
+                          <DollarSign className="w-3.5 h-3.5 mr-1" />
+                          Cash Out
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                  {noBalance != null && noBalance > 0 && (
+                    <div className="flex items-center justify-between gap-4 flex-wrap">
+                      <div>
+                        <div className="text-[10px] text-muted-foreground uppercase tracking-wider">NO Tokens</div>
+                        <div className="text-lg font-bold text-market-no font-mono">{noBalance.toFixed(4)}</div>
+                        <div className="text-xs text-muted-foreground font-mono mt-0.5">
+                          ≈ ${noCurrentValue.toFixed(2)} USDC at current price
+                        </div>
+                      </div>
+                      {isOpen && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setCashOutModal("no")}
+                          className="border-market-no/40 text-market-no hover:bg-market-no/10 hover:border-market-no font-bold uppercase tracking-wider text-xs"
+                        >
+                          <DollarSign className="w-3.5 h-3.5 mr-1" />
+                          Cash Out
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -297,6 +352,107 @@ export function MarketDetail() {
           )}
         </div>
       </div>
+
+      {/* Cash Out Confirmation Modal */}
+      {cashOutModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setCashOutModal(null)} />
+          <div className="relative z-10 w-full max-w-md border border-border bg-card rounded overflow-hidden shadow-2xl">
+            <div className={cn(
+              "h-1 w-full",
+              cashOutModal === "yes" ? "bg-market-yes" : "bg-market-no"
+            )} />
+            <div className="p-6">
+              <div className="flex items-start justify-between mb-5">
+                <div>
+                  <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1">Cash Out Position</div>
+                  <h3 className={cn(
+                    "text-lg font-bold uppercase tracking-wider",
+                    cashOutModal === "yes" ? "text-market-yes" : "text-market-no"
+                  )}>
+                    {cashOutModal.toUpperCase()} Position
+                  </h3>
+                </div>
+                <button onClick={() => setCashOutModal(null)} className="text-muted-foreground hover:text-foreground">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Position Summary */}
+              <div className="space-y-3 mb-6">
+                <div className="bg-secondary/30 rounded p-4 border border-border space-y-3">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Your tokens</span>
+                    <span className="font-bold font-mono">
+                      {cashOutModal === "yes"
+                        ? `${yesBalance?.toFixed(4)} YES`
+                        : `${noBalance?.toFixed(4)} NO`}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Current price</span>
+                    <span className="font-mono">
+                      {cashOutModal === "yes"
+                        ? `${yesProb}¢ per token`
+                        : `${noProb}¢ per token`}
+                    </span>
+                  </div>
+                  <div className="border-t border-border pt-3 flex justify-between">
+                    <span className="text-sm font-bold uppercase tracking-wider">You receive</span>
+                    <span className={cn(
+                      "text-lg font-bold font-mono",
+                      cashOutModal === "yes" ? "text-market-yes" : "text-market-no"
+                    )}>
+                      ${cashOutModal === "yes"
+                        ? yesCurrentValue.toFixed(2)
+                        : noCurrentValue.toFixed(2)} USDC
+                    </span>
+                  </div>
+                </div>
+
+                <div className={cn(
+                  "flex items-center gap-2 p-3 rounded border text-xs",
+                  (cashOutModal === "yes" ? yesCurrentValue : noCurrentValue) > 0
+                    ? "border-market-yes/30 bg-market-yes/5 text-market-yes"
+                    : "border-market-no/30 bg-market-no/5 text-market-no"
+                )}>
+                  {(cashOutModal === "yes" ? yesCurrentValue : noCurrentValue) > 0
+                    ? <TrendingUp className="w-3.5 h-3.5 shrink-0" />
+                    : <TrendingDown className="w-3.5 h-3.5 shrink-0" />}
+                  <span>
+                    Selling at current market price of{" "}
+                    <strong>{cashOutModal === "yes" ? yesProb : noProb}%</strong>.
+                    Pool is updated immediately on-chain.
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <Button
+                  onClick={() => handleCashOut(cashOutModal)}
+                  disabled={sellPending}
+                  className={cn(
+                    "flex-1 font-bold uppercase tracking-wider",
+                    cashOutModal === "yes"
+                      ? "bg-market-yes hover:bg-market-yes/90 text-market-yes-foreground"
+                      : "bg-market-no hover:bg-market-no/90 text-market-no-foreground"
+                  )}
+                >
+                  {sellPending ? "Confirming..." : "Confirm Cash Out"}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setCashOutModal(null)}
+                  className="border-border font-bold uppercase tracking-wider"
+                  disabled={sellPending}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
