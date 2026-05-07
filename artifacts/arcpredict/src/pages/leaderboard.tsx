@@ -1,7 +1,6 @@
 import { useAllMarkets } from "@/hooks/useChain";
 import { Trophy, Activity, Info } from "lucide-react";
 import { useWallet } from "@/lib/wallet";
-import { WalletConnect } from "@/components/wallet-connect";
 
 export function Leaderboard() {
   const { markets, isLoading } = useAllMarkets();
@@ -116,8 +115,7 @@ export function Leaderboard() {
           </div>
         ) : (
           <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">Connect wallet to track your positions</p>
-            <WalletConnect />
+            <p className="text-sm text-muted-foreground">Connect wallet via the header to track your positions</p>
           </div>
         )}
       </div>

@@ -1,8 +1,49 @@
-import { ReactNode } from "react";
+import { ReactNode, useState, useEffect, useCallback } from "react";
 import { Link, useLocation } from "wouter";
-import { Activity, BarChart2, Plus, Trophy, Wallet } from "lucide-react";
+import { Activity, BarChart2, Plus, Trophy, Wallet, LogOut, AlertTriangle, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { WalletConnect } from "@/components/wallet-connect";
+
+const ARC_CHAIN_ID = 5042002;
+const ARC_CHAIN_ID_HEX = "0x4cef52";
+
+declare global {
+  interface Window {
+    ethereum?: {
+      request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
+      on: (event: string, handler: (...args: unknown[]) => void) => void;
+      removeListener: (event: string, handler: (...args: unknown[]) => void) => void;
+      isMetaMask?: boolean;
+    };
+  }
+}
+
+async function addArcTestnet() {
+  await window.ethereum!.request({
+    method: "wallet_addEthereumChain",
+    params: [
+      {
+        chainId: ARC_CHAIN_ID_HEX,
+        chainName: "Arc Testnet",
+        rpcUrls: ["https://rpc.testnet.arc.network"],
+        nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
+        blockExplorerUrls: ["https://explorer.testnet.arc.network"],
+      },
+    ],
+  });
+}
+
+async function switchToArc() {
+  try {
+    await window.ethereum!.request({
+      method: "wallet_switchEthereumChain",
+      params: [{ chainId: ARC_CHAIN_ID_HEX }],
+    });
+  } catch (err: any) {
+    if (err?.code === 4902 || err?.code === -32603 || err?.code === -32000) {
+      await addArcTestnet();
+    }
+  }
+}
 
 interface NavItemProps {
   href: string;
@@ -26,20 +67,167 @@ function NavItem({ href, icon, label, active }: NavItemProps) {
   );
 }
 
+function ConnectButton() {
+  const [address, setAddress] = useState<string | null>(null);
+  const [chainId, setChainId] = useState<number | null>(null);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+
+  const isConnected = !!address;
+  const isWrongChain = isConnected && chainId !== ARC_CHAIN_ID;
+
+  const updateChain = useCallback(async () => {
+    if (!window.ethereum) return;
+    const hex = (await window.ethereum.request({ method: "eth_chainId" })) as string;
+    setChainId(parseInt(hex, 16));
+  }, []);
+
+  useEffect(() => {
+    if (!window.ethereum) return;
+
+    window.ethereum
+      .request({ method: "eth_accounts" })
+      .then(async (accounts) => {
+        const list = accounts as string[];
+        if (list[0]) {
+          setAddress(list[0]);
+          await updateChain();
+        }
+      })
+      .catch(() => {});
+
+    const onAccountsChanged = (accounts: unknown) => {
+      const list = accounts as string[];
+      setAddress(list[0] ?? null);
+      if (!list[0]) setChainId(null);
+    };
+
+    const onChainChanged = (hex: unknown) => {
+      setChainId(parseInt(hex as string, 16));
+    };
+
+    window.ethereum.on("accountsChanged", onAccountsChanged);
+    window.ethereum.on("chainChanged", onChainChanged);
+
+    return () => {
+      window.ethereum?.removeListener("accountsChanged", onAccountsChanged);
+      window.ethereum?.removeListener("chainChanged", onChainChanged);
+    };
+  }, [updateChain]);
+
+  const connect = async () => {
+    if (!window.ethereum) {
+      alert("No wallet found.\n\nPlease use MetaMask, Mises, Trust Wallet, or another Web3 browser.");
+      return;
+    }
+    setIsConnecting(true);
+    try {
+      const accounts = (await window.ethereum.request({
+        method: "eth_requestAccounts",
+      })) as string[];
+
+      if (accounts[0]) {
+        setAddress(accounts[0]);
+        const hex = (await window.ethereum.request({ method: "eth_chainId" })) as string;
+        const currentChain = parseInt(hex, 16);
+        setChainId(currentChain);
+        if (currentChain !== ARC_CHAIN_ID) {
+          await switchToArc();
+          await updateChain();
+        }
+      }
+    } catch (err: any) {
+      console.warn("Connect error:", err?.message ?? err);
+    } finally {
+      setIsConnecting(false);
+    }
+  };
+
+  const disconnect = () => {
+    setAddress(null);
+    setChainId(null);
+    setDropdownOpen(false);
+  };
+
+  if (!isConnected) {
+    return (
+      <button
+        onClick={connect}
+        disabled={isConnecting}
+        className="flex items-center gap-2 bg-primary text-primary-foreground px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wider hover:bg-primary/90 transition-colors disabled:opacity-50 whitespace-nowrap"
+      >
+        <Wallet className="w-3.5 h-3.5 shrink-0" />
+        {isConnecting ? "Connecting..." : "Connect Wallet"}
+      </button>
+    );
+  }
+
+  if (isWrongChain) {
+    return (
+      <button
+        onClick={() => switchToArc().then(updateChain)}
+        className="flex items-center gap-2 border border-yellow-500/50 bg-yellow-500/10 text-yellow-400 px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wider hover:bg-yellow-500/20 transition-colors whitespace-nowrap"
+      >
+        <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+        Switch Network
+      </button>
+    );
+  }
+
+  const short = `${address.slice(0, 6)}…${address.slice(-4)}`;
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setDropdownOpen((v) => !v)}
+        className="flex items-center gap-2 border border-border bg-card px-3 py-1.5 rounded text-xs font-mono hover:border-primary/50 transition-colors whitespace-nowrap"
+      >
+        <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse shrink-0" />
+        <span>{short}</span>
+        <ChevronDown className="w-3 h-3 text-muted-foreground shrink-0" />
+      </button>
+
+      {dropdownOpen && (
+        <>
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => setDropdownOpen(false)}
+          />
+          <div className="absolute right-0 top-full mt-1 z-50 w-52 border border-border bg-card rounded shadow-lg overflow-hidden">
+            <div className="px-3 py-2 border-b border-border">
+              <div className="text-[10px] text-muted-foreground uppercase tracking-widest mb-0.5">
+                Arc Testnet
+              </div>
+              <div className="text-xs font-mono truncate">{address}</div>
+            </div>
+            <button
+              onClick={disconnect}
+              className="w-full flex items-center gap-2 px-3 py-2.5 text-xs font-semibold text-destructive hover:bg-destructive/10 transition-colors uppercase tracking-wider"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              Disconnect
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export function Layout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col font-mono">
       <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur">
-        <div className="container mx-auto px-4 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-6">
+        <div className="container mx-auto px-4 h-14 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 md:gap-6 min-w-0">
             <Link
               href="/"
-              className="flex items-center gap-2 text-primary font-bold text-lg"
+              className="flex items-center gap-2 text-primary font-bold text-lg shrink-0"
             >
               <Activity className="h-5 w-5" />
-              <span>ARC_PREDICT</span>
+              <span className="hidden sm:inline">ARC_PREDICT</span>
             </Link>
             <nav className="flex items-center gap-1">
               <NavItem href="/" icon={<BarChart2 className="w-4 h-4" />} label="Markets" active={location === "/"} />
@@ -47,14 +235,14 @@ export function Layout({ children }: { children: ReactNode }) {
               <NavItem href="/portfolio" icon={<Wallet className="w-4 h-4" />} label="Portfolio" active={location === "/portfolio"} />
             </nav>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 shrink-0">
             <Link
               href="/markets/new"
-              className="flex items-center gap-2 text-xs font-semibold bg-secondary/80 hover:bg-secondary px-3 py-1.5 rounded transition-colors"
+              className="hidden sm:flex items-center gap-2 text-xs font-semibold bg-secondary/80 hover:bg-secondary px-3 py-1.5 rounded transition-colors whitespace-nowrap"
             >
               <Plus className="w-3.5 h-3.5" /> CREATE MARKET
             </Link>
-            <WalletConnect />
+            <ConnectButton />
           </div>
         </div>
       </header>
