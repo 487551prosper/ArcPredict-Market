@@ -1,7 +1,7 @@
 import { useParams, Link } from "wouter";
-import { useMarket, usePlaceBet, useClaimWinnings, useUsdcBalance, useTokenBalance, useSellTokens } from "@/hooks/useChain";
+import { useMarket, usePlaceBet, useClaimWinnings, useUsdcBalance, useTokenBalance, useSellTokens, useResolveMarket } from "@/hooks/useChain";
 import { formatDistanceToNow, format } from "date-fns";
-import { Activity, ArrowLeft, CheckCircle2, XCircle, AlertCircle, ExternalLink, Clock, DollarSign, TrendingDown, TrendingUp, X } from "lucide-react";
+import { ArrowLeft, CheckCircle2, XCircle, AlertCircle, ExternalLink, Clock, DollarSign, TrendingDown, TrendingUp, X, ShieldCheck } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +19,7 @@ export function MarketDetail() {
   const { placeBet, isPending: betPending, isSuccess: betSuccess, error: betError } = usePlaceBet(marketAddress);
   const { claim, isPending: claimPending, isSuccess: claimSuccess, error: claimError } = useClaimWinnings(marketAddress);
   const { sell, isPending: sellPending, isSuccess: sellSuccess, error: sellError } = useSellTokens(marketAddress);
+  const { resolve, isPending: resolvePending, isSuccess: resolveSuccess, error: resolveError } = useResolveMarket(marketAddress);
   const { formatted: usdcBalance } = useUsdcBalance(userAddress);
   const { formatted: yesBalance, raw: yesRaw } = useTokenBalance(market?.yesToken, userAddress);
   const { formatted: noBalance, raw: noRaw } = useTokenBalance(market?.noToken, userAddress);
@@ -26,6 +27,7 @@ export function MarketDetail() {
   const [position, setPosition] = useState<"yes" | "no">("yes");
   const [amount, setAmount] = useState("10");
   const [cashOutModal, setCashOutModal] = useState<"yes" | "no" | null>(null);
+  const [resolveConfirm, setResolveConfirm] = useState<boolean | null>(null);
 
   useEffect(() => {
     if (betSuccess) {
@@ -50,6 +52,14 @@ export function MarketDetail() {
     }
     if (sellError) toast.error(sellError);
   }, [sellSuccess, sellError]);
+
+  useEffect(() => {
+    if (resolveSuccess) {
+      toast.success("Market resolved successfully!");
+      setResolveConfirm(null);
+    }
+    if (resolveError) toast.error(resolveError);
+  }, [resolveSuccess, resolveError]);
 
   if (isLoading) {
     return (
@@ -352,6 +362,95 @@ export function MarketDetail() {
           )}
         </div>
       </div>
+
+      {/* Admin Resolution Panel */}
+      {market.status === "ended" && isConnected && (
+        <div className="border border-yellow-500/40 bg-yellow-500/5 rounded overflow-hidden">
+          <div className="h-1 w-full bg-yellow-500/60" />
+          <div className="p-6">
+            <div className="flex items-center gap-2 mb-2">
+              <ShieldCheck className="w-4 h-4 text-yellow-400" />
+              <span className="text-xs font-bold uppercase tracking-widest text-yellow-400">Admin — Resolve Market</span>
+            </div>
+            <p className="text-xs text-muted-foreground mb-5">
+              This market has ended. As the owner, choose the correct outcome to resolve it on-chain and allow winners to claim.
+            </p>
+            <div className="flex gap-3 flex-wrap">
+              <Button
+                onClick={() => setResolveConfirm(true)}
+                disabled={resolvePending}
+                className="bg-market-yes hover:bg-market-yes/90 text-market-yes-foreground font-bold uppercase tracking-wider flex-1 min-w-[120px]"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5 mr-2" />
+                Resolve YES
+              </Button>
+              <Button
+                onClick={() => setResolveConfirm(false)}
+                disabled={resolvePending}
+                className="bg-market-no hover:bg-market-no/90 text-market-no-foreground font-bold uppercase tracking-wider flex-1 min-w-[120px]"
+              >
+                <XCircle className="w-3.5 h-3.5 mr-2" />
+                Resolve NO
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Resolve Confirmation Modal */}
+      {resolveConfirm !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => !resolvePending && setResolveConfirm(null)} />
+          <div className="relative z-10 w-full max-w-md border border-border bg-card rounded overflow-hidden shadow-2xl">
+            <div className={cn("h-1 w-full", resolveConfirm ? "bg-market-yes" : "bg-market-no")} />
+            <div className="p-6">
+              <div className="flex items-start justify-between mb-5">
+                <div>
+                  <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1">Confirm Resolution</div>
+                  <h3 className={cn(
+                    "text-xl font-bold uppercase tracking-wider",
+                    resolveConfirm ? "text-market-yes" : "text-market-no"
+                  )}>
+                    Outcome: {resolveConfirm ? "YES" : "NO"}
+                  </h3>
+                </div>
+                <button onClick={() => !resolvePending && setResolveConfirm(null)} className="text-muted-foreground hover:text-foreground">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="bg-secondary/30 rounded p-4 border border-border mb-5 space-y-2">
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  You are about to resolve this market as <strong className={resolveConfirm ? "text-market-yes" : "text-market-no"}>{resolveConfirm ? "YES" : "NO"}</strong> on-chain.
+                  This action is <strong>irreversible</strong>. Winners holding {resolveConfirm ? "YES" : "NO"} tokens will be able to claim their USDC.
+                </p>
+                <p className="text-[10px] text-muted-foreground font-mono truncate">{market.question}</p>
+              </div>
+              <div className="flex gap-3">
+                <Button
+                  onClick={() => resolve(resolveConfirm)}
+                  disabled={resolvePending}
+                  className={cn(
+                    "flex-1 font-bold uppercase tracking-wider",
+                    resolveConfirm
+                      ? "bg-market-yes hover:bg-market-yes/90 text-market-yes-foreground"
+                      : "bg-market-no hover:bg-market-no/90 text-market-no-foreground"
+                  )}
+                >
+                  {resolvePending ? "Confirming..." : `Confirm Resolve ${resolveConfirm ? "YES" : "NO"}`}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setResolveConfirm(null)}
+                  className="border-border font-bold uppercase tracking-wider"
+                  disabled={resolvePending}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Cash Out Confirmation Modal */}
       {cashOutModal && (

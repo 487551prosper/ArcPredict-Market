@@ -432,6 +432,41 @@ export function useSellTokens(marketAddress: `0x${string}` | undefined) {
   return { sell, isPending, isSuccess, error };
 }
 
+export function useResolveMarket(marketAddress: `0x${string}` | undefined) {
+  const { address } = useWallet();
+  const qc = useQueryClient();
+  const [isPending, setIsPending] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const resolve = async (outcome: boolean) => {
+    if (!address || !marketAddress) return;
+    setError(null);
+    setIsSuccess(false);
+    setIsPending(true);
+
+    try {
+      const wc = makeWalletClient(address);
+      const hash = await wc.writeContract({
+        address: marketAddress,
+        abi: MARKET_ABI,
+        functionName: "resolveMarket",
+        args: [outcome],
+      });
+      await publicClient.waitForTransactionReceipt({ hash });
+      setIsSuccess(true);
+      qc.invalidateQueries({ queryKey: ["market", marketAddress] });
+      qc.invalidateQueries({ queryKey: ["markets", "all"] });
+    } catch (e: any) {
+      setError(e?.shortMessage ?? e?.message ?? "Transaction failed");
+    } finally {
+      setIsPending(false);
+    }
+  };
+
+  return { resolve, isPending, isSuccess, error };
+}
+
 export function useClaimWinnings(marketAddress: `0x${string}` | undefined) {
   const { address } = useWallet();
   const qc = useQueryClient();

@@ -1,6 +1,6 @@
 import { ReactNode, useState, useEffect, useCallback } from "react";
 import { Link, useLocation } from "wouter";
-import { Activity, BarChart2, Plus, Settings, Trophy, Wallet, LogOut, AlertTriangle, ChevronDown } from "lucide-react";
+import { Activity, BarChart2, Moon, Plus, Settings, Sun, Trophy, Wallet, LogOut, AlertTriangle, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const ARC_CHAIN_ID = 5042002;
@@ -43,6 +43,36 @@ async function switchToArc() {
       await addArcTestnet();
     }
   }
+}
+
+const THEME_KEY = "arcpredict_theme";
+
+export function useTheme() {
+  const [isDark, setIsDark] = useState(() => {
+    try {
+      const saved = localStorage.getItem(THEME_KEY);
+      return saved !== "light";
+    } catch {
+      return true;
+    }
+  });
+
+  useEffect(() => {
+    const html = document.documentElement;
+    if (isDark) {
+      html.classList.add("dark");
+      html.classList.remove("light");
+    } else {
+      html.classList.remove("dark");
+      html.classList.add("light");
+    }
+    try {
+      localStorage.setItem(THEME_KEY, isDark ? "dark" : "light");
+    } catch {}
+  }, [isDark]);
+
+  const toggle = () => setIsDark((v) => !v);
+  return { isDark, toggle };
 }
 
 interface NavItemProps {
@@ -214,6 +244,19 @@ function ConnectButton() {
   );
 }
 
+function ThemeToggle() {
+  const { isDark, toggle } = useTheme();
+  return (
+    <button
+      onClick={toggle}
+      title={isDark ? "Switch to light mode" : "Switch to dark mode"}
+      className="flex items-center justify-center w-8 h-8 rounded border border-border text-muted-foreground hover:text-primary hover:border-primary/50 transition-colors"
+    >
+      {isDark ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+    </button>
+  );
+}
+
 export function Layout({ children }: { children: ReactNode }) {
   const [location] = useLocation();
 
@@ -237,6 +280,7 @@ export function Layout({ children }: { children: ReactNode }) {
             </nav>
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            <ThemeToggle />
             <Link
               href="/markets/new"
               className="hidden sm:flex items-center gap-2 text-xs font-semibold bg-secondary/80 hover:bg-secondary px-3 py-1.5 rounded transition-colors whitespace-nowrap"

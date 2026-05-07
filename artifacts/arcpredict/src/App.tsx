@@ -42,7 +42,19 @@ function Router() {
 
 function App() {
   useEffect(() => {
-    document.documentElement.classList.add("dark");
+    try {
+      const saved = localStorage.getItem("arcpredict_theme");
+      const html = document.documentElement;
+      if (saved === "light") {
+        html.classList.remove("dark");
+        html.classList.add("light");
+      } else {
+        html.classList.add("dark");
+        html.classList.remove("light");
+      }
+    } catch {
+      document.documentElement.classList.add("dark");
+    }
   }, []);
 
   return (
