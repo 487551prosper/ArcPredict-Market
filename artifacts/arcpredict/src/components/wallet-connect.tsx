@@ -1,93 +1,94 @@
-import { useState, useEffect } from 'react'
+import { useState } from "react";
+import { useWallet } from "@/lib/wallet";
+import { useUsdcBalance } from "@/hooks/useChain";
+import { Wallet, LogOut, AlertTriangle, ChevronDown } from "lucide-react";
 
-declare global {
-  interface Window {
-    ethereum?: any
-  }
-}
+export function WalletConnect() {
+  const { address, isConnected, isConnecting, isWrongChain, connect, disconnect, switchChain } =
+    useWallet();
+  const { formatted: usdcBalance } = useUsdcBalance(address);
+  const [open, setOpen] = useState(false);
 
-export function ConnectButton() {
-  const [address, setAddress] = useState<string | null>(null)
-  const [connecting, setConnecting] = useState(false)
-
-  useEffect(() => {
-    if (window.ethereum?.selectedAddress) {
-      setAddress(window.ethereum.selectedAddress)
-    }
-  }, [])
-
-  async function connect() {
-    setConnecting(true)
-    try {
-      if (window.ethereum) {
-        const accounts = await window.ethereum.request({
-          method: 'eth_requestAccounts'
-        })
-        if (accounts[0]) {
-          setAddress(accounts[0])
-          await window.ethereum.request({
-            method: 'wallet_addEthereumChain',
-            params: [{
-              chainId: '0x4D0192',
-              chainName: 'Arc Testnet',
-              nativeCurrency: {
-                name: 'USDC',
-                symbol: 'USDC',
-                decimals: 6
-              },
-              rpcUrls: ['https://rpc.testnet.arc.network'],
-              blockExplorerUrls: ['https://testnet.arcscan.app']
-            }]
-          })
-        }
-      } else {
-        // No wallet detected - open MetaMask deep link
-        const currentUrl = encodeURIComponent(window.location.href)
-        window.location.href = `https://metamask.app.link/dapp/${window.location.host}`
-      }
-    } catch (err) {
-      console.error(err)
-    }
-    setConnecting(false)
-  }
-
-  if (address) {
+  // Not connected
+  if (!isConnected) {
     return (
-      <button style={{
-        background: '#00ff88',
-        color: '#000',
-        border: 'none',
-        padding: '8px 16px',
-        borderRadius: '4px',
-        cursor: 'pointer',
-        fontFamily: 'monospace',
-        fontWeight: 'bold'
-      }}>
-        {address.slice(0, 6)}...{address.slice(-4)}
+      <button
+        onClick={connect}
+        disabled={isConnecting}
+        className="flex items-center gap-2 bg-primary text-primary-foreground px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wider hover:bg-primary/90 transition-colors disabled:opacity-50"
+      >
+        <Wallet className="w-3.5 h-3.5" />
+        {isConnecting ? "Connecting..." : "Connect Wallet"}
       </button>
-    )
+    );
   }
+
+  // Wrong chain
+  if (isWrongChain) {
+    return (
+      <button
+        onClick={switchChain}
+        className="flex items-center gap-2 border border-yellow-500/50 bg-yellow-500/10 text-yellow-400 px-3 py-1.5 rounded text-xs font-bold uppercase tracking-wider hover:bg-yellow-500/20 transition-colors"
+      >
+        <AlertTriangle className="w-3.5 h-3.5" />
+        Switch to Arc Testnet
+      </button>
+    );
+  }
+
+  // Connected — show address with dropdown
+  const short = `${address?.slice(0, 6)}…${address?.slice(-4)}`;
 
   return (
-    <button
-      onClick={connect}
-      disabled={connecting}
-      style={{
-        background: 'transparent',
-        color: '#00ff88',
-        border: '1px solid #00ff88',
-        padding: '8px 16px',
-        borderRadius: '4px',
-        cursor: 'pointer',
-        fontFamily: 'monospace',
-        fontWeight: 'bold'
-      }}
-    >
-      {connecting ? 'CONNECTING...' : 'CONNECT WALLET'}
-    </button>
-  )
-}
+    <div className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-2 border border-border bg-card px-3 py-1.5 rounded text-xs font-mono hover:border-primary/50 transition-colors"
+      >
+        <div className="h-2 w-2 rounded-full bg-market-yes animate-pulse" />
+        <span className="hidden sm:inline text-muted-foreground">
+          {usdcBalance != null ? `$${usdcBalance.toFixed(2)} · ` : ""}
+        </span>
+        <span>{short}</span>
+        <ChevronDown className="w-3 h-3 text-muted-foreground" />
+      </button>
 
-export function WalletConnect({ children }: { children: React.ReactNode }) {
-  return <>{children}</>
+      {open && (
+        <>
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => setOpen(false)}
+          />
+          {/* Dropdown */}
+          <div className="absolute right-0 top-full mt-1 z-50 w-52 border border-border bg-card rounded shadow-lg overflow-hidden">
+            <div className="px-3 py-2 border-b border-border">
+              <div className="text-[10px] text-muted-foreground uppercase tracking-widest mb-0.5">
+                Arc Testnet
+              </div>
+              <div className="text-xs font-mono truncate">{address}</div>
+            </div>
+            {usdcBalance != null && (
+              <div className="px-3 py-2 border-b border-border">
+                <div className="text-[10px] text-muted-foreground uppercase tracking-widest mb-0.5">
+                  USDC Balance
+                </div>
+                <div className="text-sm font-bold font-mono">${usdcBalance.toFixed(2)}</div>
+              </div>
+            )}
+            <button
+              onClick={() => {
+                setOpen(false);
+                disconnect();
+              }}
+              className="w-full flex items-center gap-2 px-3 py-2.5 text-xs font-semibold text-destructive hover:bg-destructive/10 transition-colors uppercase tracking-wider"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              Disconnect
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
 }

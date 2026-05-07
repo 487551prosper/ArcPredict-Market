@@ -4,12 +4,12 @@ import { Activity, Clock, Plus, TrendingUp, Zap } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
 import type { ChainMarket } from "@/hooks/useChain";
-import { useAccount } from "wagmi";
+import { useWallet } from "@/lib/wallet";
 
 export function Home() {
   const { markets, isLoading } = useAllMarkets();
   const { data: marketCount } = useMarketCount();
-  const { isConnected } = useAccount();
+  const { isConnected } = useWallet();
 
   const openMarkets = markets.filter((m) => m.status === "open");
   const totalVolume = markets.reduce((s, m) => s + m.totalVolume, 0);

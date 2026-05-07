@@ -2,7 +2,7 @@ import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import { Activity, BarChart2, Plus, Trophy, Wallet } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { ConnectButton } from "@/components/wallet-connect";
+import { WalletConnect } from "@/components/wallet-connect";
 
 interface NavItemProps {
   href: string;
@@ -13,14 +13,15 @@ interface NavItemProps {
 
 function NavItem({ href, icon, label, active }: NavItemProps) {
   return (
-    <Link href={href}>
-      <a className={cn(
+    <Link
+      href={href}
+      className={cn(
         "flex items-center gap-2 px-3 py-2 rounded text-xs font-semibold transition-colors",
         active ? "text-primary" : "text-muted-foreground hover:text-primary"
-      )}>
-        {icon}
-        <span className="hidden md:inline">{label}</span>
-      </a>
+      )}
+    >
+      {icon}
+      <span className="hidden md:inline">{label}</span>
     </Link>
   );
 }
@@ -33,11 +34,12 @@ export function Layout({ children }: { children: ReactNode }) {
       <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur">
         <div className="container mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-6">
-            <Link href="/">
-              <a className="flex items-center gap-2 text-primary font-bold text-lg">
-                <Activity className="h-5 w-5" />
-                <span>ARC_PREDICT</span>
-              </a>
+            <Link
+              href="/"
+              className="flex items-center gap-2 text-primary font-bold text-lg"
+            >
+              <Activity className="h-5 w-5" />
+              <span>ARC_PREDICT</span>
             </Link>
             <nav className="flex items-center gap-1">
               <NavItem href="/" icon={<BarChart2 className="w-4 h-4" />} label="Markets" active={location === "/"} />
@@ -46,12 +48,13 @@ export function Layout({ children }: { children: ReactNode }) {
             </nav>
           </div>
           <div className="flex items-center gap-4">
-            <Link href="/markets/new">
-              <a className="flex items-center gap-2 text-xs font-semibold bg-secondary/80 hover:bg-secondary px-3 py-1.5 rounded transition-colors">
-                <Plus className="w-3.5 h-3.5" /> CREATE MARKET
-              </a>
+            <Link
+              href="/markets/new"
+              className="flex items-center gap-2 text-xs font-semibold bg-secondary/80 hover:bg-secondary px-3 py-1.5 rounded transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" /> CREATE MARKET
             </Link>
-            <ConnectButton />
+            <WalletConnect />
           </div>
         </div>
       </header>

@@ -1,6 +1,5 @@
 import { Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { WagmiProvider } from "wagmi";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Layout } from "@/components/layout";
@@ -11,7 +10,7 @@ import { Leaderboard } from "@/pages/leaderboard";
 import { Portfolio } from "@/pages/portfolio";
 import NotFound from "@/pages/not-found";
 import { useEffect } from "react";
-import { wagmiConfig } from "@/lib/chain";
+import { WalletProvider } from "@/lib/wallet";
 import { Toaster as Sonner } from "sonner";
 
 const queryClient = new QueryClient({
@@ -45,7 +44,7 @@ function App() {
   }, []);
 
   return (
-    <WagmiProvider config={wagmiConfig}>
+    <WalletProvider>
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
@@ -55,7 +54,7 @@ function App() {
           <Sonner theme="dark" position="bottom-right" richColors />
         </TooltipProvider>
       </QueryClientProvider>
-    </WagmiProvider>
+    </WalletProvider>
   );
 }
 

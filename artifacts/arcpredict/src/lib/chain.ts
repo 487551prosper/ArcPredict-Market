@@ -1,9 +1,10 @@
-import { createAppKit } from "@reown/appkit/react";
-import { WagmiAdapter } from "@reown/appkit-adapter-wagmi";
-import { defineChain } from "viem";
+import { createPublicClient, http, defineChain } from "viem";
+
+export const ARC_CHAIN_ID = 5042002;
+export const ARC_CHAIN_ID_HEX = "0x4cef52";
 
 export const arcTestnet = defineChain({
-  id: 5042002,
+  id: ARC_CHAIN_ID,
   name: "Arc Testnet",
   nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
   rpcUrls: {
@@ -15,36 +16,8 @@ export const arcTestnet = defineChain({
   },
 });
 
-const projectId = "75ee11fcb268a9ce1df27d9fe935cff2";
-
-export const wagmiAdapter = new WagmiAdapter({
-  networks: [arcTestnet],
-  projectId,
+// Singleton public client — used for all on-chain reads
+export const publicClient = createPublicClient({
+  chain: arcTestnet,
+  transport: http("https://rpc.testnet.arc.network"),
 });
-
-// Must be called from @reown/appkit/react so getAppKit(modal) registers the React context
-createAppKit({
-  adapters: [wagmiAdapter],
-  networks: [arcTestnet],
-  defaultNetwork: arcTestnet,
-  projectId,
-  metadata: {
-    name: "ArcPredict",
-    description: "Prediction markets on Arc Testnet",
-    url: typeof window !== "undefined" ? window.location.origin : "",
-    icons: [],
-  },
-  features: {
-    analytics: false,
-    email: false,
-    socials: false,
-  },
-  themeMode: "dark",
-  themeVariables: {
-    "--w3m-accent": "hsl(190 90% 50%)",
-    "--w3m-border-radius-master": "2px",
-    "--w3m-font-family": "'JetBrains Mono', 'Menlo', monospace",
-  },
-});
-
-export const wagmiConfig = wagmiAdapter.wagmiConfig;

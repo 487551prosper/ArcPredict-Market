@@ -6,13 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { useAccount } from "wagmi";
+import { useWallet } from "@/lib/wallet";
 
 const CATEGORIES = ["Economics", "Technology", "Crypto", "Science", "Politics", "Sports", "Entertainment", "Other"];
 
 export function CreateMarket() {
   const [, setLocation] = useLocation();
-  const { isConnected } = useAccount();
+  const { isConnected } = useWallet();
   const { createMarket, isPending, isSuccess, txHash, error } = useCreateMarket();
 
   const [title, setTitle] = useState("");

@@ -7,13 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { useAccount } from "wagmi";
+import { useWallet } from "@/lib/wallet";
 import { fromUsdc } from "@/lib/contracts";
 
 export function MarketDetail() {
   const { address: marketAddr } = useParams();
   const marketAddress = marketAddr as `0x${string}` | undefined;
-  const { address: userAddress, isConnected } = useAccount();
+  const { address: userAddress, isConnected } = useWallet();
 
   const { market, isLoading } = useMarket(marketAddress);
   const { placeBet, isPending: betPending, isSuccess: betSuccess, error: betError } = usePlaceBet(marketAddress);

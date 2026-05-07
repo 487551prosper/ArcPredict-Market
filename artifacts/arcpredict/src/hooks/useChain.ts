@@ -1,11 +1,8 @@
-import {
-  useReadContract,
-  useReadContracts,
-  useWriteContract,
-  useAccount,
-  useWaitForTransactionReceipt,
-} from "wagmi";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { publicClient, arcTestnet } from "@/lib/chain";
+import { useWallet } from "@/lib/wallet";
+import { createWalletClient, custom, decodeAbiParameters, encodeAbiParameters } from "viem";
 import {
   FACTORY_ABI,
   MARKET_ABI,
@@ -35,111 +32,140 @@ function computePrices(totalYes: bigint, totalNo: bigint) {
   const y = Number(totalYes);
   const n = Number(totalNo);
   if (y + n === 0) return { yesPrice: 0.5, noPrice: 0.5 };
-  return {
-    yesPrice: y / (y + n),
-    noPrice: n / (y + n),
-  };
+  return { yesPrice: y / (y + n), noPrice: n / (y + n) };
 }
 
-function computeStatus(
-  endTime: bigint,
-  yesWon: boolean,
-  isResolved: boolean
-): ChainMarket["status"] {
+function computeStatus(endTime: bigint, yesWon: boolean): ChainMarket["status"] {
   const now = BigInt(Math.floor(Date.now() / 1000));
-  if (!isResolved && endTime > now) return "open";
-  if (isResolved) return yesWon ? "resolved_yes" : "resolved_no";
+  if (endTime > now) return "open";
+  if (yesWon) return "resolved_yes";
   return "ended";
 }
 
+// ── Raw selectors confirmed via direct RPC against the deployed contracts ──
+// Factory
+const SEL_GET_ALL_MARKETS = "0xb0772d0b" as const;
+const SEL_GET_MARKET_COUNT = "0xfd69f3c2" as const;
+// Market
+const SEL_QUESTION  = "0x3fad9ae0" as const;
+const SEL_END_TIME  = "0x3197cbb6" as const;
+const SEL_TOTAL_YES = "0x88ba8dd6" as const;
+const SEL_TOTAL_NO  = "0xaf008883" as const;
+const SEL_YES_TOKEN = "0x11a9f10a" as const;
+const SEL_NO_TOKEN  = "0xf0d9bb20" as const;
+const SEL_YES_WON   = "0xcbee38dc" as const;
+// ERC-20
+const SEL_BALANCE_OF = "0x70a08231" as const;
+const SEL_ALLOWANCE  = "0xdd62ed3e" as const;
+
+// Low-level helper: call with a known selector + optional ABI-encoded params
+async function rawCall(
+  to: `0x${string}`,
+  selector: `0x${string}`,
+  paramTypes: Parameters<typeof encodeAbiParameters>[0] = [],
+  params: Parameters<typeof encodeAbiParameters>[1] = []
+): Promise<`0x${string}` | null> {
+  try {
+    const encoded =
+      paramTypes.length > 0
+        ? encodeAbiParameters(paramTypes, params).slice(2)
+        : "";
+    const result = await publicClient.call({
+      to,
+      data: `${selector}${encoded}` as `0x${string}`,
+    });
+    return result.data && result.data !== "0x" ? result.data : null;
+  } catch {
+    return null;
+  }
+}
+
+// Fetch all fields for a single market address
+async function fetchMarket(addr: `0x${string}`): Promise<ChainMarket | null> {
+  try {
+    const [qRes, etRes, tyRes, tnRes, ytRes, ntRes, ywRes] = await Promise.all([
+      rawCall(addr, SEL_QUESTION),
+      rawCall(addr, SEL_END_TIME),
+      rawCall(addr, SEL_TOTAL_YES),
+      rawCall(addr, SEL_TOTAL_NO),
+      rawCall(addr, SEL_YES_TOKEN),
+      rawCall(addr, SEL_NO_TOKEN),
+      rawCall(addr, SEL_YES_WON),
+    ]);
+
+    if (!qRes || !etRes) return null;
+
+    const [question]  = decodeAbiParameters([{ type: "string" }],   qRes);
+    const [endTime]   = decodeAbiParameters([{ type: "uint256" }],  etRes);
+    const totalYes    = tyRes ? (decodeAbiParameters([{ type: "uint256" }], tyRes)[0] as bigint) : 0n;
+    const totalNo     = tnRes ? (decodeAbiParameters([{ type: "uint256" }], tnRes)[0] as bigint) : 0n;
+    const yesToken    = ytRes ? (decodeAbiParameters([{ type: "address" }], ytRes)[0] as `0x${string}`) : "0x" as `0x${string}`;
+    const noToken     = ntRes ? (decodeAbiParameters([{ type: "address" }], ntRes)[0] as `0x${string}`) : "0x" as `0x${string}`;
+    const yesWon      = ywRes ? (decodeAbiParameters([{ type: "bool" }],    ywRes)[0] as boolean) : false;
+
+    const { yesPrice, noPrice } = computePrices(totalYes, totalNo);
+    return {
+      address: addr,
+      question:    question as string,
+      endTime:     endTime as bigint,
+      yesToken,
+      noToken,
+      totalYes,
+      totalNo,
+      yesWon,
+      yesPrice,
+      noPrice,
+      totalVolume: fromUsdc(totalYes + totalNo),
+      status:      computeStatus(endTime as bigint, yesWon),
+    };
+  } catch {
+    return null;
+  }
+}
+
+// ── Factory reads ──
+
 export function useAllMarketAddresses() {
-  return useReadContract({
-    address: MARKET_FACTORY_ADDRESS,
-    abi: FACTORY_ABI,
-    functionName: "getAllMarkets",
+  return useQuery({
+    queryKey: ["factory", "getAllMarkets"],
+    queryFn: async () => {
+      const data = await rawCall(MARKET_FACTORY_ADDRESS, SEL_GET_ALL_MARKETS);
+      if (!data) return [] as `0x${string}`[];
+      const [addresses] = decodeAbiParameters([{ type: "address[]" }], data);
+      return addresses as `0x${string}`[];
+    },
+    staleTime: 10_000,
   });
 }
 
 export function useMarketCount() {
-  return useReadContract({
-    address: MARKET_FACTORY_ADDRESS,
-    abi: FACTORY_ABI,
-    functionName: "getMarketCount",
+  return useQuery({
+    queryKey: ["factory", "getMarketCount"],
+    queryFn: async () => {
+      const data = await rawCall(MARKET_FACTORY_ADDRESS, SEL_GET_MARKET_COUNT);
+      if (!data) return 0n;
+      const [count] = decodeAbiParameters([{ type: "uint256" }], data);
+      return count as bigint;
+    },
+    staleTime: 10_000,
   });
 }
+
+// ── Market reads ──
 
 export function useAllMarkets() {
   const { data: addresses, isLoading: addrLoading } = useAllMarketAddresses();
 
-  const fields = [
-    "question",
-    "endTime",
-    "yesToken",
-    "noToken",
-    "totalYes",
-    "totalNo",
-    "yesWon",
-  ] as const;
-
-  const contracts = (addresses ?? []).flatMap((addr) =>
-    fields.map((fn) => ({
-      address: addr as `0x${string}`,
-      abi: MARKET_ABI,
-      functionName: fn,
-    }))
-  );
-
-  const { data: results, isLoading: dataLoading } = useReadContracts({
-    contracts,
-    query: { enabled: !!addresses && addresses.length > 0 },
+  const { data: markets = [], isLoading: dataLoading } = useQuery({
+    queryKey: ["markets", "all", addresses],
+    queryFn: async () => {
+      if (!addresses?.length) return [];
+      const results = await Promise.all(addresses.map(fetchMarket));
+      return results.filter((m): m is ChainMarket => m !== null);
+    },
+    enabled: !!addresses && addresses.length > 0,
+    staleTime: 10_000,
   });
-
-  const markets: ChainMarket[] = [];
-
-  if (addresses && results) {
-    const n = fields.length;
-    for (let i = 0; i < addresses.length; i++) {
-      const chunk = results.slice(i * n, (i + 1) * n);
-      const [q, et, yt, nt, ty, tn, yw] = chunk;
-
-      if (q.status === "failure" || et.status === "failure") continue;
-
-      const question = q.result as string;
-      const endTime = et.result as bigint;
-      const yesToken = (yt.result as `0x${string}`) ?? "0x";
-      const noToken = (nt.result as `0x${string}`) ?? "0x";
-      const totalYes = (ty.result as bigint) ?? 0n;
-      const totalNo = (tn.result as bigint) ?? 0n;
-      const yesWon = (yw.result as boolean) ?? false;
-
-      // Infer resolved: if endTime has passed and totalYes+totalNo > 0 and yesWon
-      // is set, it's likely resolved. Without a resolved() flag we use endTime.
-      const now = BigInt(Math.floor(Date.now() / 1000));
-      const isEnded = endTime < now;
-      // We treat "isResolved" as: market is ended AND yesWon is explicitly true
-      // OR we can check if the market has settled by looking at both tokens
-      const isResolved = isEnded && yw.status === "success";
-
-      const { yesPrice, noPrice } = computePrices(totalYes, totalNo);
-      const totalVolume = fromUsdc(totalYes + totalNo);
-      const status = computeStatus(endTime, yesWon, isResolved);
-
-      markets.push({
-        address: addresses[i] as `0x${string}`,
-        question,
-        endTime,
-        yesToken,
-        noToken,
-        totalYes,
-        totalNo,
-        yesWon,
-        yesPrice,
-        noPrice,
-        totalVolume,
-        status,
-      });
-    }
-  }
 
   return {
     markets,
@@ -149,141 +175,152 @@ export function useAllMarkets() {
 }
 
 export function useMarket(marketAddress: `0x${string}` | undefined) {
-  const fields = [
-    "question",
-    "endTime",
-    "yesToken",
-    "noToken",
-    "totalYes",
-    "totalNo",
-    "yesWon",
-  ] as const;
-
-  const { data: results, isLoading } = useReadContracts({
-    contracts: fields.map((fn) => ({
-      address: marketAddress!,
-      abi: MARKET_ABI,
-      functionName: fn,
-    })),
-    query: { enabled: !!marketAddress },
+  const { data: market = null, isLoading } = useQuery({
+    queryKey: ["market", marketAddress],
+    queryFn: () => fetchMarket(marketAddress!),
+    enabled: !!marketAddress,
+    staleTime: 10_000,
+    refetchInterval: 30_000,
   });
-
-  if (!results || !marketAddress)
-    return { market: null, isLoading };
-
-  const [q, et, yt, nt, ty, tn, yw] = results;
-  if (q.status === "failure") return { market: null, isLoading };
-
-  const totalYes = (ty.result as bigint) ?? 0n;
-  const totalNo = (tn.result as bigint) ?? 0n;
-  const yesWon = (yw.result as boolean) ?? false;
-  const endTime = (et.result as bigint) ?? 0n;
-  const now = BigInt(Math.floor(Date.now() / 1000));
-  const isEnded = endTime < now;
-  const isResolved = isEnded && yw.status === "success";
-
-  const { yesPrice, noPrice } = computePrices(totalYes, totalNo);
-
-  const market: ChainMarket = {
-    address: marketAddress,
-    question: (q.result as string) ?? "",
-    endTime,
-    yesToken: (yt.result as `0x${string}`) ?? "0x",
-    noToken: (nt.result as `0x${string}`) ?? "0x",
-    totalYes,
-    totalNo,
-    yesWon,
-    yesPrice,
-    noPrice,
-    totalVolume: fromUsdc(totalYes + totalNo),
-    status: computeStatus(endTime, yesWon, isResolved),
-  };
 
   return { market, isLoading };
 }
 
-export function useUsdcBalance(address: `0x${string}` | undefined) {
-  const { data, refetch } = useReadContract({
-    address: USDC_ADDRESS,
-    abi: ERC20_ABI,
-    functionName: "balanceOf",
-    args: [address!],
-    query: { enabled: !!address },
+// ── Token reads ──
+
+export function useUsdcBalance(address: `0x${string}` | null | undefined) {
+  const { data, refetch } = useQuery({
+    queryKey: ["usdc", "balance", address],
+    queryFn: async () => {
+      const data = await rawCall(
+        USDC_ADDRESS,
+        SEL_BALANCE_OF,
+        [{ type: "address" }],
+        [address!]
+      );
+      if (!data) return 0n;
+      const [bal] = decodeAbiParameters([{ type: "uint256" }], data);
+      return bal as bigint;
+    },
+    enabled: !!address,
+    staleTime: 15_000,
   });
-  return { raw: data as bigint | undefined, formatted: data ? fromUsdc(data as bigint) : undefined, refetch };
+
+  return {
+    raw: data as bigint | undefined,
+    formatted: data != null ? fromUsdc(data as bigint) : undefined,
+    refetch,
+  };
 }
 
 export function useUsdcAllowance(
-  owner: `0x${string}` | undefined,
+  owner: `0x${string}` | null | undefined,
   spender: `0x${string}` | undefined
 ) {
-  const { data, refetch } = useReadContract({
-    address: USDC_ADDRESS,
-    abi: ERC20_ABI,
-    functionName: "allowance",
-    args: [owner!, spender!],
-    query: { enabled: !!owner && !!spender },
+  const { data, refetch } = useQuery({
+    queryKey: ["usdc", "allowance", owner, spender],
+    queryFn: async () => {
+      const data = await rawCall(
+        USDC_ADDRESS,
+        SEL_ALLOWANCE,
+        [{ type: "address" }, { type: "address" }],
+        [owner!, spender!]
+      );
+      if (!data) return 0n;
+      const [allowance] = decodeAbiParameters([{ type: "uint256" }], data);
+      return allowance as bigint;
+    },
+    enabled: !!owner && !!spender,
+    staleTime: 10_000,
   });
+
   return { allowance: data as bigint | undefined, refetch };
 }
 
 export function useTokenBalance(
   tokenAddress: `0x${string}` | undefined,
-  account: `0x${string}` | undefined
+  account: `0x${string}` | null | undefined
 ) {
-  const { data, refetch } = useReadContract({
-    address: tokenAddress!,
-    abi: ERC20_ABI,
-    functionName: "balanceOf",
-    args: [account!],
-    query: { enabled: !!tokenAddress && !!account && tokenAddress !== "0x" },
+  const { data, refetch } = useQuery({
+    queryKey: ["token", tokenAddress, "balance", account],
+    queryFn: async () => {
+      const data = await rawCall(
+        tokenAddress!,
+        SEL_BALANCE_OF,
+        [{ type: "address" }],
+        [account!]
+      );
+      if (!data) return 0n;
+      const [bal] = decodeAbiParameters([{ type: "uint256" }], data);
+      return bal as bigint;
+    },
+    enabled: !!tokenAddress && !!account && tokenAddress !== "0x",
+    staleTime: 15_000,
   });
-  return { raw: data as bigint | undefined, formatted: data ? fromUsdc(data as bigint) : undefined, refetch };
+
+  return {
+    raw: data as bigint | undefined,
+    formatted: data != null ? fromUsdc(data as bigint) : undefined,
+    refetch,
+  };
 }
 
-// --- Write hooks ---
+// ── Write helpers ──
+
+function makeWalletClient(address: `0x${string}`) {
+  return createWalletClient({
+    account: address,
+    chain: arcTestnet,
+    transport: custom(window.ethereum as any),
+  });
+}
 
 export function usePlaceBet(marketAddress: `0x${string}` | undefined) {
-  const { address } = useAccount();
-  const { writeContractAsync } = useWriteContract();
+  const { address } = useWallet();
+  const qc = useQueryClient();
   const [txHash, setTxHash] = useState<`0x${string}` | undefined>();
   const [isPending, setIsPending] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const { allowance, refetch: refetchAllowance } = useUsdcAllowance(address, marketAddress);
-  const { refetch: refetchBalance } = useUsdcBalance(address);
-
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
-    hash: txHash,
-  });
 
   const placeBet = async (isYes: boolean, usdcAmount: number) => {
     if (!address || !marketAddress) throw new Error("Not connected");
     const raw = toUsdc(usdcAmount);
     setError(null);
+    setIsSuccess(false);
     setIsPending(true);
+
     try {
-      // Approve if needed
+      const wc = makeWalletClient(address);
+
+      // Approve USDC if needed
       if (!allowance || allowance < raw) {
-        const approveTx = await writeContractAsync({
+        const approveTx = await wc.writeContract({
           address: USDC_ADDRESS,
           abi: ERC20_ABI,
           functionName: "approve",
           args: [marketAddress, raw],
         });
-        // wait briefly for approval to be mined before betting
-        await new Promise((r) => setTimeout(r, 2000));
+        await publicClient.waitForTransactionReceipt({ hash: approveTx });
         await refetchAllowance();
       }
 
-      const hash = await writeContractAsync({
+      // Place bet
+      const hash = await wc.writeContract({
         address: marketAddress,
         abi: MARKET_ABI,
         functionName: "placeBet",
         args: [isYes, raw],
       });
       setTxHash(hash);
-      refetchBalance();
+      await publicClient.waitForTransactionReceipt({ hash });
+      setIsSuccess(true);
+
+      qc.invalidateQueries({ queryKey: ["market", marketAddress] });
+      qc.invalidateQueries({ queryKey: ["usdc", "balance", address] });
+      qc.invalidateQueries({ queryKey: ["markets", "all"] });
     } catch (e: any) {
       setError(e?.shortMessage ?? e?.message ?? "Transaction failed");
     } finally {
@@ -291,64 +328,74 @@ export function usePlaceBet(marketAddress: `0x${string}` | undefined) {
     }
   };
 
-  return { placeBet, isPending: isPending || isConfirming, isSuccess, txHash, error };
+  return { placeBet, isPending, isSuccess, txHash, error };
 }
 
 export function useCreateMarket() {
-  const { writeContractAsync } = useWriteContract();
+  const { address } = useWallet();
+  const qc = useQueryClient();
   const [txHash, setTxHash] = useState<`0x${string}` | undefined>();
   const [isPending, setIsPending] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
-    hash: txHash,
-  });
-
   const createMarket = async (question: string, endTimestamp: number) => {
+    if (!address) throw new Error("Not connected");
     setError(null);
+    setIsSuccess(false);
     setIsPending(true);
+
     try {
-      const hash = await writeContractAsync({
+      const wc = makeWalletClient(address);
+      const hash = await wc.writeContract({
         address: MARKET_FACTORY_ADDRESS,
         abi: FACTORY_ABI,
         functionName: "createMarket",
         args: [question, BigInt(endTimestamp)],
       });
       setTxHash(hash);
+      await publicClient.waitForTransactionReceipt({ hash });
+      setIsSuccess(true);
+      qc.invalidateQueries({ queryKey: ["factory"] });
+      qc.invalidateQueries({ queryKey: ["markets"] });
       return hash;
     } catch (e: any) {
-      setError(e?.shortMessage ?? e?.message ?? "Transaction failed");
+      const msg = e?.shortMessage ?? e?.message ?? "Transaction failed";
+      setError(msg);
       throw e;
     } finally {
       setIsPending(false);
     }
   };
 
-  return { createMarket, isPending: isPending || isConfirming, isSuccess, txHash, error };
+  return { createMarket, isPending, isSuccess, txHash, error };
 }
 
 export function useClaimWinnings(marketAddress: `0x${string}` | undefined) {
-  const { writeContractAsync } = useWriteContract();
-  const [txHash, setTxHash] = useState<`0x${string}` | undefined>();
+  const { address } = useWallet();
+  const qc = useQueryClient();
   const [isPending, setIsPending] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
-    hash: txHash,
-  });
-
   const claim = async () => {
-    if (!marketAddress) return;
+    if (!address || !marketAddress) return;
     setError(null);
+    setIsSuccess(false);
     setIsPending(true);
+
     try {
-      const hash = await writeContractAsync({
+      const wc = makeWalletClient(address);
+      const hash = await wc.writeContract({
         address: marketAddress,
         abi: MARKET_ABI,
         functionName: "claimWinnings",
         args: [],
       });
-      setTxHash(hash);
+      await publicClient.waitForTransactionReceipt({ hash });
+      setIsSuccess(true);
+      qc.invalidateQueries({ queryKey: ["market", marketAddress] });
+      qc.invalidateQueries({ queryKey: ["usdc", "balance", address] });
     } catch (e: any) {
       setError(e?.shortMessage ?? e?.message ?? "Transaction failed");
     } finally {
@@ -356,5 +403,5 @@ export function useClaimWinnings(marketAddress: `0x${string}` | undefined) {
     }
   };
 
-  return { claim, isPending: isPending || isConfirming, isSuccess, error };
+  return { claim, isPending, isSuccess, error };
 }

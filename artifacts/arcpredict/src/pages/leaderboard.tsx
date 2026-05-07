@@ -1,11 +1,11 @@
 import { useAllMarkets } from "@/hooks/useChain";
 import { Trophy, Activity, Info } from "lucide-react";
-import { useAccount } from "wagmi";
+import { useWallet } from "@/lib/wallet";
 import { WalletConnect } from "@/components/wallet-connect";
 
 export function Leaderboard() {
   const { markets, isLoading } = useAllMarkets();
-  const { isConnected, address } = useAccount();
+  const { isConnected, address } = useWallet();
 
   const openCount = markets.filter((m) => m.status === "open").length;
   const resolvedCount = markets.filter(

@@ -2,11 +2,11 @@ import { Link } from "wouter";
 import { useAllMarkets, useTokenBalance, useUsdcBalance } from "@/hooks/useChain";
 import { ArrowLeft, Wallet, Activity, TrendingUp, TrendingDown, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useAccount } from "wagmi";
+import { useWallet } from "@/lib/wallet";
 import type { ChainMarket } from "@/hooks/useChain";
 
 export function Portfolio() {
-  const { address, isConnected } = useAccount();
+  const { address, isConnected } = useWallet();
   const { markets, isLoading } = useAllMarkets();
   const { formatted: usdcBalance } = useUsdcBalance(address);
 
