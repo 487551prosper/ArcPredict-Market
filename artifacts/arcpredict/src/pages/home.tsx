@@ -5,7 +5,8 @@ import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
 import type { ChainMarket } from "@/hooks/useChain";
 import { useWallet } from "@/lib/wallet";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { getSettings } from "./settings";
 
 const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
@@ -23,11 +24,41 @@ export function Home() {
   const { data: marketCount } = useMarketCount();
   const { isConnected } = useWallet();
   const settings = getSettings();
+  const qc = useQueryClient();
 
   const openMarkets = markets.filter((m) => m.status === "open");
   const totalVolume = markets.reduce((s, m) => s + m.totalVolume, 0);
 
   const [aiModal, setAiModal] = useState<{ market: ChainMarket; analysis: AIAnalysis | null; loading: boolean } | null>(null);
+
+  // Auto-expiry: schedule an immediate refetch for each open market exactly
+  // when its endTime arrives, so the status flips to "ended" without waiting
+  // for the next 30-second polling interval.
+  const expiryTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  useEffect(() => {
+    expiryTimersRef.current.forEach(clearTimeout);
+    expiryTimersRef.current = [];
+
+    const nowMs = Date.now();
+    for (const m of markets) {
+      if (m.status !== "open") continue;
+      const endMs = Number(m.endTime) * 1000;
+      const msUntilClose = endMs - nowMs;
+      if (msUntilClose <= 0) {
+        qc.invalidateQueries({ queryKey: ["markets", "all"] });
+        continue;
+      }
+      const t = setTimeout(() => {
+        qc.invalidateQueries({ queryKey: ["markets", "all"] });
+        qc.invalidateQueries({ queryKey: ["factory"] });
+      }, msUntilClose);
+      expiryTimersRef.current.push(t);
+    }
+
+    return () => {
+      expiryTimersRef.current.forEach(clearTimeout);
+    };
+  }, [markets, qc]);
 
   const openAiInsight = async (market: ChainMarket, e: React.MouseEvent) => {
     e.preventDefault();

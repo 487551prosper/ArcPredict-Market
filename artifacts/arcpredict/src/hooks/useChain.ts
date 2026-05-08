@@ -103,13 +103,14 @@ async function fetchMarket(addr: `0x${string}`): Promise<ChainMarket | null> {
     const noToken     = ntRes ? (decodeAbiParameters([{ type: "address" }], ntRes)[0] as `0x${string}`) : "0x" as `0x${string}`;
     const yesWon      = ywRes ? (decodeAbiParameters([{ type: "bool" }],    ywRes)[0] as boolean) : false;
 
-    // Normalize endTime to seconds. Some contracts erroneously store it in
-    // milliseconds. If the value is beyond year 2100 in seconds we treat it
-    // as milliseconds and divide by 1000.
+    // Normalize endTime to seconds. Some contracts erroneously store the
+    // value in milliseconds (or worse). Repeatedly divide by 1000 until the
+    // value falls within a plausible range (before year 2100 in seconds).
     const YEAR_2100_SECS = 4102444800n;
-    const endTime = (rawEndTime as bigint) > YEAR_2100_SECS
-      ? (rawEndTime as bigint) / 1000n
-      : (rawEndTime as bigint);
+    let endTime = rawEndTime as bigint;
+    while (endTime > YEAR_2100_SECS && endTime > 1000n) {
+      endTime = endTime / 1000n;
+    }
 
     const { yesPrice, noPrice } = computePrices(totalYes, totalNo);
     return {

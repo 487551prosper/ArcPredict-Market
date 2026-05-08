@@ -10,6 +10,7 @@ import { Leaderboard } from "@/pages/leaderboard";
 import { Portfolio } from "@/pages/portfolio";
 import { Settings_ } from "@/pages/settings";
 import { CheckIn } from "@/pages/check-in";
+import { Referral } from "@/pages/referral";
 import NotFound from "@/pages/not-found";
 import { useEffect } from "react";
 import { WalletProvider } from "@/lib/wallet";
@@ -39,6 +40,7 @@ function Router() {
           <Route path="/portfolio" component={Portfolio} />
           <Route path="/settings" component={Settings_} />
           <Route path="/check-in" component={CheckIn} />
+          <Route path="/referral" component={Referral} />
           <Route component={NotFound} />
         </Switch>
       </Layout>

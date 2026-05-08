@@ -1,6 +1,6 @@
 import { ReactNode, useState, useEffect, useCallback } from "react";
 import { Link, useLocation } from "wouter";
-import { BarChart2, CalendarDays, Moon, Plus, Settings, Sun, Trophy, Wallet, LogOut, AlertTriangle, ChevronDown, Zap } from "lucide-react";
+import { BarChart2, CalendarDays, Gift, Moon, Plus, Settings, Sun, Trophy, Wallet, LogOut, AlertTriangle, ChevronDown, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePoints } from "@/contexts/PointsContext";
 
@@ -303,6 +303,7 @@ export function Layout({ children }: { children: ReactNode }) {
               <NavItem href="/leaderboard" icon={<Trophy className="w-4 h-4" />} label="Leaderboard" active={location === "/leaderboard"} />
               <NavItem href="/portfolio" icon={<Wallet className="w-4 h-4" />} label="Portfolio" active={location === "/portfolio"} />
               <NavItem href="/check-in" icon={<CalendarDays className="w-4 h-4" />} label="Check-In" active={location === "/check-in"} />
+              <NavItem href="/referral" icon={<Gift className="w-4 h-4" />} label="Referral" active={location === "/referral"} />
               <NavItem href="/settings" icon={<Settings className="w-4 h-4" />} label="Settings" active={location === "/settings"} />
             </nav>
           </div>
