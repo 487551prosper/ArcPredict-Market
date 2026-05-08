@@ -4,6 +4,11 @@ import { anthropic } from "@workspace/integrations-anthropic-ai";
 const router = Router();
 
 router.post("/ai-insights", async (req, res) => {
+  if (!anthropic) {
+    res.status(503).json({ error: "AI integration not configured" });
+    return;
+  }
+
   const { question, yesProb, noProb, totalVolume, status, endTime } = req.body;
 
   if (!question) {
