@@ -1,57 +1,18 @@
 import { useState, useEffect, ReactNode } from "react";
-import { CheckCircle2, Twitter, Wallet, XCircle } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { CheckCircle2, Circle, ExternalLink, Loader2, Twitter, Wallet } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useWallet } from "@/lib/wallet";
 import { usePoints } from "@/contexts/PointsContext";
 
-const ARC_CHAIN_ID = 5042002;
-const ARC_CHAIN_ID_HEX = "0x4cef52";
-
-async function addArcTestnet() {
-  await window.ethereum!.request({
-    method: "wallet_addEthereumChain",
-    params: [
-      {
-        chainId: ARC_CHAIN_ID_HEX,
-        chainName: "Arc Testnet",
-        rpcUrls: ["https://rpc.testnet.arc.network"],
-        nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
-        blockExplorerUrls: ["https://explorer.testnet.arc.network"],
-      },
-    ],
-  });
-}
-
-function StepIndicator({ step, current }: { step: number; current: number }) {
-  const done = step < current;
-  const active = step === current;
-  return (
-    <div className="flex items-center gap-1">
-      <div
-        className={cn(
-          "w-7 h-7 rounded-full border-2 flex items-center justify-center text-xs font-bold transition-all",
-          done
-            ? "border-market-yes bg-market-yes text-market-yes-foreground"
-            : active
-            ? "border-primary bg-primary/10 text-primary"
-            : "border-border text-muted-foreground"
-        )}
-      >
-        {done ? <CheckCircle2 className="w-4 h-4" /> : step}
-      </div>
-    </div>
-  );
-}
-
 export function OnboardingGate({ children }: { children: ReactNode }) {
   const { address, isConnected, connect, isConnecting } = useWallet();
   const { onboarding, onboardingComplete, markStep, refresh } = usePoints();
+  const [followOpened, setFollowOpened] = useState(false);
+  const [entering, setEntering] = useState(false);
 
-  const [xHandleInput, setXHandleInput] = useState("");
-  const [xHandleError, setXHandleError] = useState("");
-  const [followClicked, setFollowClicked] = useState(false);
+  useEffect(() => {
+    refresh();
+  }, [address, refresh]);
 
   useEffect(() => {
     if (isConnected && address && !onboarding.walletConnected) {
@@ -59,17 +20,11 @@ export function OnboardingGate({ children }: { children: ReactNode }) {
     }
   }, [isConnected, address, onboarding.walletConnected, markStep]);
 
-  useEffect(() => {
-    refresh();
-  }, [address, refresh]);
-
   if (onboardingComplete) return <>{children}</>;
 
-  const currentStep = !onboarding.walletConnected
-    ? 1
-    : !onboarding.followed
-    ? 2
-    : 3;
+  const step1Done = onboarding.walletConnected;
+  const step2Done = onboarding.followed;
+  const step3Done = onboarding.verified;
 
   const handleFollow = () => {
     window.open(
@@ -77,198 +32,244 @@ export function OnboardingGate({ children }: { children: ReactNode }) {
       "_blank",
       "noopener,noreferrer"
     );
-    setFollowClicked(true);
-  };
-
-  const handleMarkFollowed = () => {
+    setFollowOpened(true);
     markStep("followed");
   };
 
-  const handleVerify = () => {
-    const handle = xHandleInput.replace(/^@/, "").trim();
-    if (!handle || handle.length < 1) {
-      setXHandleError("Please enter your X (Twitter) handle.");
-      return;
-    }
-    if (!/^[A-Za-z0-9_]{1,15}$/.test(handle)) {
-      setXHandleError("Invalid handle — only letters, numbers and underscores, max 15 chars.");
-      return;
-    }
-    setXHandleError("");
-    markStep("verified", handle);
+  const handleConfirmFollow = () => {
+    setEntering(true);
+    setTimeout(() => markStep("verified"), 600);
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground font-mono flex flex-col items-center justify-center p-4">
-      <div className="w-full max-w-lg">
-        {/* Logo */}
-        <div className="flex items-center gap-2 text-primary font-bold text-xl mb-10 justify-center">
-          <img src="/logo.png" alt="ArcPredict" className="h-9 w-9 rounded-sm object-cover" />
-          ARC_PREDICT
-        </div>
+    <div className="min-h-screen bg-background text-foreground font-mono flex flex-col items-center justify-center p-4 relative overflow-hidden">
+      {/* Subtle grid background */}
+      <div
+        className="absolute inset-0 opacity-[0.03] pointer-events-none"
+        style={{
+          backgroundImage:
+            "linear-gradient(hsl(var(--primary)) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--primary)) 1px, transparent 1px)",
+          backgroundSize: "40px 40px",
+        }}
+      />
 
-        {/* Step indicators */}
-        <div className="flex items-center gap-2 justify-center mb-10">
-          <StepIndicator step={1} current={currentStep} />
-          <div className={cn("flex-1 h-px max-w-[60px] transition-colors", currentStep > 1 ? "bg-market-yes" : "bg-border")} />
-          <StepIndicator step={2} current={currentStep} />
-          <div className={cn("flex-1 h-px max-w-[60px] transition-colors", currentStep > 2 ? "bg-market-yes" : "bg-border")} />
-          <StepIndicator step={3} current={currentStep} />
-        </div>
+      {/* Glow orb */}
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-primary/5 blur-3xl pointer-events-none" />
 
-        {/* Step content */}
-        <div className="border border-border bg-card rounded-lg overflow-hidden shadow-xl">
-          <div className="h-1 w-full bg-primary" />
+      <div className={cn("relative z-10 w-full max-w-md transition-all duration-700", entering && "scale-95 opacity-0")}>
 
-          {currentStep === 1 && (
-            <div className="p-8 text-center space-y-5">
-              <div className="w-14 h-14 rounded-full bg-primary/10 border border-primary/30 flex items-center justify-center mx-auto">
-                <Wallet className="w-7 h-7 text-primary" />
-              </div>
-              <div>
-                <h2 className="text-lg font-bold uppercase tracking-wider mb-2">Connect Your Wallet</h2>
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  Connect your MetaMask wallet to start predicting on Arc Testnet. You'll need it to place bets and create markets.
-                </p>
-              </div>
-              <Button
-                onClick={connect}
-                disabled={isConnecting}
-                className="w-full bg-primary text-primary-foreground font-bold uppercase tracking-wider"
-              >
-                <Wallet className="w-4 h-4 mr-2" />
-                {isConnecting ? "Connecting…" : "Connect MetaMask"}
-              </Button>
-              {!window.ethereum && (
-                <p className="text-xs text-muted-foreground">
-                  No wallet detected.{" "}
-                  <a
-                    href="https://metamask.io/download"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-primary hover:underline"
-                  >
-                    Install MetaMask
-                  </a>
-                </p>
-              )}
-            </div>
-          )}
-
-          {currentStep === 2 && (
-            <div className="p-8 text-center space-y-5">
-              <div className="w-14 h-14 rounded-full bg-[#1d9bf0]/10 border border-[#1d9bf0]/30 flex items-center justify-center mx-auto">
-                <Twitter className="w-7 h-7 text-[#1d9bf0]" />
-              </div>
-              <div>
-                <h2 className="text-lg font-bold uppercase tracking-wider mb-2">Follow Us on X</h2>
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  Follow <span className="text-primary font-semibold">@Arc_predict</span> on X to stay updated with new markets, resolutions, and announcements.
-                </p>
-              </div>
-              {!followClicked ? (
-                <Button
-                  onClick={handleFollow}
-                  className="w-full bg-[#1d9bf0] hover:bg-[#1a8cd8] text-white font-bold uppercase tracking-wider"
-                >
-                  <Twitter className="w-4 h-4 mr-2" />
-                  Follow @Arc_predict on X
-                </Button>
-              ) : (
-                <div className="space-y-3">
-                  <div className="text-xs text-muted-foreground">
-                    Opened X in a new tab. Once you've followed, click below.
-                  </div>
-                  <Button
-                    onClick={handleMarkFollowed}
-                    className="w-full bg-market-yes hover:bg-market-yes/90 text-market-yes-foreground font-bold uppercase tracking-wider"
-                  >
-                    <CheckCircle2 className="w-4 h-4 mr-2" />
-                    I've Followed @Arc_predict
-                  </Button>
-                  <button
-                    onClick={handleFollow}
-                    className="text-xs text-muted-foreground hover:text-primary underline underline-offset-2"
-                  >
-                    Open X again
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-
-          {currentStep === 3 && (
-            <div className="p-8 space-y-5">
-              <div className="text-center">
-                <div className="w-14 h-14 rounded-full bg-primary/10 border border-primary/30 flex items-center justify-center mx-auto mb-4">
-                  <CheckCircle2 className="w-7 h-7 text-primary" />
-                </div>
-                <h2 className="text-lg font-bold uppercase tracking-wider mb-2">Verify Your X Account</h2>
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  Enter your X (Twitter) handle to link your account and complete verification.
-                </p>
-              </div>
-              <div className="space-y-2">
-                <label className="text-[10px] uppercase tracking-widest text-muted-foreground">
-                  Your X Handle
-                </label>
-                <div className="flex gap-2">
-                  <div className="relative flex-1">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-mono">@</span>
-                    <Input
-                      value={xHandleInput}
-                      onChange={(e) => {
-                        setXHandleInput(e.target.value.replace(/^@/, ""));
-                        setXHandleError("");
-                      }}
-                      placeholder="your_handle"
-                      className="pl-7 font-mono"
-                      onKeyDown={(e) => e.key === "Enter" && handleVerify()}
-                    />
-                  </div>
-                </div>
-                {xHandleError && (
-                  <p className="text-xs text-destructive flex items-center gap-1">
-                    <XCircle className="w-3 h-3" /> {xHandleError}
-                  </p>
-                )}
-              </div>
-              <Button
-                onClick={handleVerify}
-                className="w-full bg-primary text-primary-foreground font-bold uppercase tracking-wider"
-              >
-                Verify &amp; Enter ArcPredict
-              </Button>
-            </div>
-          )}
-
-          {/* Progress footer */}
-          <div className="border-t border-border px-6 py-3 flex justify-between items-center bg-secondary/20">
-            <span className="text-[10px] text-muted-foreground uppercase tracking-widest">
-              Step {currentStep} of 3
-            </span>
-            <div className="flex gap-1.5">
-              {[1, 2, 3].map((s) => (
-                <div
-                  key={s}
-                  className={cn(
-                    "w-1.5 h-1.5 rounded-full transition-all",
-                    s < currentStep
-                      ? "bg-market-yes"
-                      : s === currentStep
-                      ? "bg-primary"
-                      : "bg-border"
-                  )}
-                />
-              ))}
+        {/* Logo + name */}
+        <div className="flex flex-col items-center gap-3 mb-8">
+          <div className="relative">
+            <div className="absolute inset-0 rounded-xl bg-primary/20 blur-lg scale-110" />
+            <img
+              src="/logo.png"
+              alt="ArcPredict"
+              className="relative h-16 w-16 rounded-xl object-cover border border-primary/30 shadow-lg"
+            />
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold tracking-[0.15em] text-primary">
+              ARC<span className="text-foreground">_</span>PREDICT
             </div>
           </div>
         </div>
 
-        <p className="text-center text-[10px] text-muted-foreground mt-6">
+        {/* Welcome card */}
+        <div className="border border-border bg-card/80 backdrop-blur-sm rounded-xl overflow-hidden shadow-2xl">
+          {/* Top accent bar */}
+          <div className="h-px w-full bg-gradient-to-r from-transparent via-primary to-transparent" />
+
+          {/* Welcome message */}
+          <div className="px-8 pt-8 pb-6 text-center border-b border-border/50">
+            <h1 className="text-base font-bold uppercase tracking-widest text-foreground mb-2">
+              Welcome to ArcPredict
+            </h1>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              AI Powered Prediction Markets on Arc Blockchain
+            </p>
+          </div>
+
+          {/* Steps */}
+          <div className="px-8 py-6 space-y-4">
+            <p className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground mb-5">
+              Complete to access markets
+            </p>
+
+            {/* Step 1 — Connect Wallet */}
+            <Step
+              number={1}
+              title="Connect Wallet"
+              description="Link your MetaMask to Arc Testnet"
+              done={step1Done}
+              active={!step1Done}
+            >
+              {!step1Done && (
+                <button
+                  onClick={connect}
+                  disabled={isConnecting}
+                  className="mt-3 w-full flex items-center justify-center gap-2 bg-primary text-primary-foreground py-2.5 px-4 rounded text-xs font-bold uppercase tracking-wider hover:bg-primary/90 transition-colors disabled:opacity-60"
+                >
+                  {isConnecting ? (
+                    <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Connecting…</>
+                  ) : (
+                    <><Wallet className="w-3.5 h-3.5" /> Connect MetaMask</>
+                  )}
+                </button>
+              )}
+              {!step1Done && !window.ethereum && (
+                <a
+                  href="https://metamask.io/download"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-2 flex items-center justify-center gap-1 text-[10px] text-muted-foreground hover:text-primary transition-colors"
+                >
+                  <ExternalLink className="w-3 h-3" /> Install MetaMask
+                </a>
+              )}
+            </Step>
+
+            {/* Connector */}
+            <StepConnector filled={step1Done} />
+
+            {/* Step 2 — Follow on X */}
+            <Step
+              number={2}
+              title="Follow @Arc_predict on X"
+              description="Stay updated with markets and announcements"
+              done={step2Done}
+              active={step1Done && !step2Done}
+              locked={!step1Done}
+            >
+              {step1Done && !step2Done && (
+                <button
+                  onClick={handleFollow}
+                  className="mt-3 w-full flex items-center justify-center gap-2 bg-[#1d9bf0] hover:bg-[#1a8cd8] text-white py-2.5 px-4 rounded text-xs font-bold uppercase tracking-wider transition-colors"
+                >
+                  <Twitter className="w-3.5 h-3.5" />
+                  Follow @Arc_predict on X
+                </button>
+              )}
+            </Step>
+
+            {/* Connector */}
+            <StepConnector filled={step2Done} />
+
+            {/* Step 3 — Confirm follow */}
+            <Step
+              number={3}
+              title="Confirm Follow"
+              description="Let us know you've followed"
+              done={step3Done}
+              active={step2Done && !step3Done}
+              locked={!step2Done}
+            >
+              {step2Done && !step3Done && (
+                <button
+                  onClick={handleConfirmFollow}
+                  className="mt-3 w-full flex items-center justify-center gap-2 border border-market-yes/60 bg-market-yes/10 text-market-yes hover:bg-market-yes/20 py-2.5 px-4 rounded text-xs font-bold uppercase tracking-wider transition-colors"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  I Followed @Arc_predict
+                </button>
+              )}
+              {step2Done && !step3Done && !followOpened && (
+                <button
+                  onClick={handleFollow}
+                  className="mt-2 flex items-center justify-center gap-1 w-full text-[10px] text-muted-foreground hover:text-primary transition-colors"
+                >
+                  <Twitter className="w-3 h-3" /> Didn't open? Click to follow first
+                </button>
+              )}
+            </Step>
+          </div>
+
+          {/* Bottom bar */}
+          <div className="border-t border-border/50 px-8 py-4 flex items-center justify-between bg-secondary/10">
+            <div className="flex gap-1.5">
+              {[step1Done, step2Done, step3Done].map((done, i) => (
+                <div
+                  key={i}
+                  className={cn(
+                    "h-1 rounded-full transition-all duration-500",
+                    done ? "w-6 bg-primary" : "w-3 bg-border"
+                  )}
+                />
+              ))}
+            </div>
+            <span className="text-[10px] text-muted-foreground uppercase tracking-widest">
+              {[step1Done, step2Done, step3Done].filter(Boolean).length} / 3 complete
+            </span>
+          </div>
+        </div>
+
+        <p className="text-center text-[10px] text-muted-foreground mt-6 tracking-wider">
           ARC_PREDICT · Arc Testnet · Chain ID 5042002
         </p>
       </div>
+    </div>
+  );
+}
+
+function Step({
+  number,
+  title,
+  description,
+  done,
+  active,
+  locked = false,
+  children,
+}: {
+  number: number;
+  title: string;
+  description: string;
+  done: boolean;
+  active: boolean;
+  locked?: boolean;
+  children?: ReactNode;
+}) {
+  return (
+    <div
+      className={cn(
+        "rounded-lg border p-4 transition-all duration-300",
+        done && "border-primary/30 bg-primary/5",
+        active && !done && "border-primary/50 bg-primary/5 shadow-[0_0_16px_-4px_hsl(var(--primary)/0.2)]",
+        locked && "border-border/40 opacity-40 select-none"
+      )}
+    >
+      <div className="flex items-start gap-3">
+        {/* Status icon */}
+        <div className="shrink-0 mt-0.5">
+          {done ? (
+            <CheckCircle2 className="w-5 h-5 text-primary" />
+          ) : active ? (
+            <div className="w-5 h-5 rounded-full border-2 border-primary flex items-center justify-center">
+              <span className="text-[9px] font-bold text-primary">{number}</span>
+            </div>
+          ) : (
+            <Circle className="w-5 h-5 text-border" />
+          )}
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 min-w-0">
+          <div className={cn("text-xs font-bold uppercase tracking-wider", done ? "text-primary" : active ? "text-foreground" : "text-muted-foreground")}>
+            {title}
+          </div>
+          <div className="text-[10px] text-muted-foreground mt-0.5 leading-relaxed">
+            {description}
+          </div>
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StepConnector({ filled }: { filled: boolean }) {
+  return (
+    <div className="flex items-center pl-[22px]">
+      <div className={cn("w-px h-4 transition-colors duration-500", filled ? "bg-primary/50" : "bg-border/50")} />
     </div>
   );
 }
