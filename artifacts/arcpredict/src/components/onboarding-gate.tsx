@@ -3,12 +3,26 @@ import { CheckCircle2, Circle, ExternalLink, Loader2, Twitter, Wallet } from "lu
 import { cn } from "@/lib/utils";
 import { useWallet } from "@/lib/wallet";
 import { usePoints } from "@/contexts/PointsContext";
+import {
+  getRefCodeFromUrl,
+  storePendingRef,
+  getPendingRef,
+  clearPendingRef,
+  apiRegisterRef,
+  apiCompleteReferral,
+} from "@/lib/referrals";
 
 export function OnboardingGate({ children }: { children: ReactNode }) {
   const { address, isConnected, connect, isConnecting } = useWallet();
   const { onboarding, onboardingComplete, markStep, refresh } = usePoints();
   const [followOpened, setFollowOpened] = useState(false);
   const [entering, setEntering] = useState(false);
+
+  // Capture ?ref= from URL on first load
+  useEffect(() => {
+    const code = getRefCodeFromUrl();
+    if (code) storePendingRef(code);
+  }, []);
 
   useEffect(() => {
     refresh();
@@ -17,6 +31,8 @@ export function OnboardingGate({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (isConnected && address && !onboarding.walletConnected) {
       markStep("walletConnected");
+      // Register this user's own referral code in localStorage
+      apiRegisterRef(address);
     }
   }, [isConnected, address, onboarding.walletConnected, markStep]);
 
@@ -38,6 +54,13 @@ export function OnboardingGate({ children }: { children: ReactNode }) {
 
   const handleConfirmFollow = () => {
     setEntering(true);
+    // Fire referral completion before entering — awards 100 pts to the referrer
+    if (address) {
+      const pendingRef = getPendingRef();
+      if (pendingRef) {
+        apiCompleteReferral(pendingRef, address).then(() => clearPendingRef());
+      }
+    }
     setTimeout(() => markStep("verified"), 600);
   };
 

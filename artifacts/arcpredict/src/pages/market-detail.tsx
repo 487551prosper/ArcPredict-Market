@@ -2,19 +2,21 @@ import { useParams, Link } from "wouter";
 import { useMarket, usePlaceBet, useClaimWinnings, useUsdcBalance, useTokenBalance, useSellTokens, useResolveMarket } from "@/hooks/useChain";
 import { usePoints } from "@/contexts/PointsContext";
 import { formatDistanceToNow, format } from "date-fns";
-import { ArrowLeft, CheckCircle2, XCircle, AlertCircle, ExternalLink, Clock, DollarSign, TrendingDown, TrendingUp, X, ShieldCheck } from "lucide-react";
-import { useState, useEffect } from "react";
+import { ArrowLeft, CheckCircle2, XCircle, AlertCircle, ExternalLink, Clock, DollarSign, TrendingDown, TrendingUp, X, ShieldCheck, TimerOff } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useWallet } from "@/lib/wallet";
 import { fromUsdc } from "@/lib/contracts";
+import { useQueryClient } from "@tanstack/react-query";
 
 export function MarketDetail() {
   const { address: marketAddr } = useParams();
   const marketAddress = marketAddr as `0x${string}` | undefined;
   const { address: userAddress, isConnected } = useWallet();
+  const qc = useQueryClient();
 
   const { award } = usePoints();
   const { market, isLoading } = useMarket(marketAddress);
@@ -66,6 +68,30 @@ export function MarketDetail() {
     }
     if (resolveError) toast.error(resolveError);
   }, [resolveSuccess, resolveError]);
+
+  // Auto-close: when this market's endTime arrives, immediately refetch so the
+  // status flips from "open" → "ended" without waiting for the next interval.
+  const autoCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!market || market.status !== "open" || !marketAddress) return;
+    const nowMs = Date.now();
+    const endMs = Number(market.endTime) * 1000;
+    const msUntilClose = endMs - nowMs;
+    if (msUntilClose <= 0) {
+      // Already expired — invalidate right away
+      qc.invalidateQueries({ queryKey: ["market", marketAddress] });
+      qc.invalidateQueries({ queryKey: ["markets", "all"] });
+      return;
+    }
+    autoCloseTimerRef.current = setTimeout(() => {
+      qc.invalidateQueries({ queryKey: ["market", marketAddress] });
+      qc.invalidateQueries({ queryKey: ["markets", "all"] });
+      toast.info("Market has closed — awaiting resolution.");
+    }, msUntilClose);
+    return () => {
+      if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
+    };
+  }, [market?.endTime, market?.status, marketAddress, qc]);
 
   if (isLoading) {
     return (

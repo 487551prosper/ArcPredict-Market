@@ -173,6 +173,8 @@ export function useAllMarkets() {
     },
     enabled: !!addresses && addresses.length > 0,
     staleTime: 10_000,
+    // Refetch every 30 s so expired markets auto-close in the UI
+    refetchInterval: 30_000,
   });
 
   return {

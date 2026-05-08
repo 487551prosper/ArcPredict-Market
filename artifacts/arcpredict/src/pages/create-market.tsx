@@ -41,6 +41,9 @@ export function CreateMarket() {
       toast.error("Please fill in all required fields");
       return;
     }
+    // closesAt from datetime-local is a local-time string like "2026-06-01T18:00"
+    // new Date() treats it as local time, .getTime() gives ms since epoch,
+    // dividing by 1000 (floored) gives the correct Unix timestamp in seconds.
     const endTimestamp = Math.floor(new Date(closesAt).getTime() / 1000);
     if (endTimestamp <= Math.floor(Date.now() / 1000)) {
       toast.error("Close date must be in the future");
@@ -51,9 +54,10 @@ export function CreateMarket() {
     await createMarket(question, endTimestamp);
   };
 
-  const minDate = new Date();
-  minDate.setDate(minDate.getDate() + 1);
-  const minDateStr = minDate.toISOString().split("T")[0];
+  // Minimum datetime = 1 hour from now (datetime-local format: "YYYY-MM-DDTHH:MM")
+  const minDateObj = new Date(Date.now() + 60 * 60 * 1000);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const minDateStr = `${minDateObj.getFullYear()}-${pad(minDateObj.getMonth() + 1)}-${pad(minDateObj.getDate())}T${pad(minDateObj.getHours())}:${pad(minDateObj.getMinutes())}`;
 
   if (!settings.publicMarketCreation) {
     return (
@@ -131,13 +135,14 @@ export function CreateMarket() {
             <div className="space-y-2">
               <label className="text-xs font-semibold uppercase tracking-widest text-muted-foreground block">Closes At *</label>
               <Input
-                type="date"
+                type="datetime-local"
                 value={closesAt}
                 min={minDateStr}
                 onChange={(e) => setClosesAt(e.target.value)}
-                className="bg-background border-border font-mono w-48"
+                className="bg-background border-border font-mono w-56"
                 disabled={isPending}
               />
+              <p className="text-xs text-muted-foreground">Date &amp; time in your local timezone — stored as Unix seconds on-chain.</p>
             </div>
 
             <div className="bg-secondary/30 border border-border rounded p-4 text-xs text-muted-foreground space-y-1.5">
