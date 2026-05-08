@@ -1,6 +1,7 @@
 import { useCreateMarket } from "@/hooks/useChain";
 import { useState, useEffect } from "react";
 import { useLocation, Link } from "wouter";
+import { usePoints } from "@/contexts/PointsContext";
 import { ArrowLeft, Plus, AlertCircle, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +16,7 @@ export function CreateMarket() {
   const [, setLocation] = useLocation();
   const { isConnected } = useWallet();
   const { createMarket, isPending, isSuccess, txHash, error } = useCreateMarket();
+  const { award } = usePoints();
   const settings = getSettings();
 
   const [title, setTitle] = useState("");
@@ -23,7 +25,8 @@ export function CreateMarket() {
 
   useEffect(() => {
     if (isSuccess) {
-      toast.success("Market created on-chain!");
+      toast.success("Market created on-chain! +15 pts");
+      award("Create a market", 15);
       setTimeout(() => setLocation("/"), 1500);
     }
   }, [isSuccess, setLocation]);

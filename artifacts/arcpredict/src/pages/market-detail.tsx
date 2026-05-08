@@ -1,5 +1,6 @@
 import { useParams, Link } from "wouter";
 import { useMarket, usePlaceBet, useClaimWinnings, useUsdcBalance, useTokenBalance, useSellTokens, useResolveMarket } from "@/hooks/useChain";
+import { usePoints } from "@/contexts/PointsContext";
 import { formatDistanceToNow, format } from "date-fns";
 import { ArrowLeft, CheckCircle2, XCircle, AlertCircle, ExternalLink, Clock, DollarSign, TrendingDown, TrendingUp, X, ShieldCheck } from "lucide-react";
 import { useState, useEffect } from "react";
@@ -15,6 +16,7 @@ export function MarketDetail() {
   const marketAddress = marketAddr as `0x${string}` | undefined;
   const { address: userAddress, isConnected } = useWallet();
 
+  const { award } = usePoints();
   const { market, isLoading } = useMarket(marketAddress);
   const { placeBet, isPending: betPending, isSuccess: betSuccess, error: betError } = usePlaceBet(marketAddress);
   const { claim, isPending: claimPending, isSuccess: claimSuccess, error: claimError } = useClaimWinnings(marketAddress);
@@ -31,7 +33,8 @@ export function MarketDetail() {
 
   useEffect(() => {
     if (betSuccess) {
-      toast.success("Bet placed successfully!");
+      toast.success("Bet placed successfully! +5 pts");
+      award("Place a bet", 5);
       setAmount("");
     }
   }, [betSuccess]);
@@ -41,7 +44,10 @@ export function MarketDetail() {
   }, [betError]);
 
   useEffect(() => {
-    if (claimSuccess) toast.success("Winnings claimed!");
+    if (claimSuccess) {
+      toast.success("Winnings claimed! +20 pts");
+      award("Win a bet", 20);
+    }
     if (claimError) toast.error(claimError);
   }, [claimSuccess, claimError]);
 

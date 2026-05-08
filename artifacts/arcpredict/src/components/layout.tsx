@@ -1,7 +1,8 @@
 import { ReactNode, useState, useEffect, useCallback } from "react";
 import { Link, useLocation } from "wouter";
-import { Activity, BarChart2, Moon, Plus, Settings, Sun, Trophy, Wallet, LogOut, AlertTriangle, ChevronDown } from "lucide-react";
+import { Activity, BarChart2, CalendarDays, Moon, Plus, Settings, Sun, Trophy, Wallet, LogOut, AlertTriangle, ChevronDown, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { usePoints } from "@/contexts/PointsContext";
 
 const ARC_CHAIN_ID = 5042002;
 const ARC_CHAIN_ID_HEX = "0x4cef52";
@@ -93,6 +94,31 @@ function NavItem({ href, icon, label, active }: NavItemProps) {
     >
       {icon}
       <span className="hidden md:inline">{label}</span>
+    </Link>
+  );
+}
+
+function PointsBadge() {
+  const { points, streak, lastCheckIn } = usePoints();
+  const today = new Date().toISOString().split("T")[0];
+  const canCheckIn = lastCheckIn !== today;
+
+  return (
+    <Link
+      href="/check-in"
+      className={cn(
+        "flex items-center gap-1.5 px-2.5 py-1.5 rounded border text-xs font-bold font-mono transition-all",
+        canCheckIn
+          ? "border-primary/60 bg-primary/10 text-primary hover:bg-primary/20 animate-pulse"
+          : "border-border bg-card text-muted-foreground hover:border-primary/40 hover:text-primary"
+      )}
+      title={canCheckIn ? "Check in for daily points!" : `${streak} day streak`}
+    >
+      <Zap className="w-3 h-3 shrink-0" />
+      <span>{points.toLocaleString()}</span>
+      {streak > 0 && (
+        <span className="text-orange-400">🔥{streak}</span>
+      )}
     </Link>
   );
 }
@@ -276,10 +302,12 @@ export function Layout({ children }: { children: ReactNode }) {
               <NavItem href="/" icon={<BarChart2 className="w-4 h-4" />} label="Markets" active={location === "/"} />
               <NavItem href="/leaderboard" icon={<Trophy className="w-4 h-4" />} label="Leaderboard" active={location === "/leaderboard"} />
               <NavItem href="/portfolio" icon={<Wallet className="w-4 h-4" />} label="Portfolio" active={location === "/portfolio"} />
+              <NavItem href="/check-in" icon={<CalendarDays className="w-4 h-4" />} label="Check-In" active={location === "/check-in"} />
               <NavItem href="/settings" icon={<Settings className="w-4 h-4" />} label="Settings" active={location === "/settings"} />
             </nav>
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            <PointsBadge />
             <ThemeToggle />
             <Link
               href="/markets/new"

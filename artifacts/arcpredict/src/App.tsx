@@ -9,9 +9,12 @@ import { CreateMarket } from "@/pages/create-market";
 import { Leaderboard } from "@/pages/leaderboard";
 import { Portfolio } from "@/pages/portfolio";
 import { Settings_ } from "@/pages/settings";
+import { CheckIn } from "@/pages/check-in";
 import NotFound from "@/pages/not-found";
 import { useEffect } from "react";
 import { WalletProvider } from "@/lib/wallet";
+import { PointsProvider } from "@/contexts/PointsContext";
+import { OnboardingGate } from "@/components/onboarding-gate";
 import { Toaster as Sonner } from "sonner";
 
 const queryClient = new QueryClient({
@@ -26,17 +29,20 @@ const queryClient = new QueryClient({
 
 function Router() {
   return (
-    <Layout>
-      <Switch>
-        <Route path="/" component={Home} />
-        <Route path="/markets/new" component={CreateMarket} />
-        <Route path="/markets/:address" component={MarketDetail} />
-        <Route path="/leaderboard" component={Leaderboard} />
-        <Route path="/portfolio" component={Portfolio} />
-        <Route path="/settings" component={Settings_} />
-        <Route component={NotFound} />
-      </Switch>
-    </Layout>
+    <OnboardingGate>
+      <Layout>
+        <Switch>
+          <Route path="/" component={Home} />
+          <Route path="/markets/new" component={CreateMarket} />
+          <Route path="/markets/:address" component={MarketDetail} />
+          <Route path="/leaderboard" component={Leaderboard} />
+          <Route path="/portfolio" component={Portfolio} />
+          <Route path="/settings" component={Settings_} />
+          <Route path="/check-in" component={CheckIn} />
+          <Route component={NotFound} />
+        </Switch>
+      </Layout>
+    </OnboardingGate>
   );
 }
 
@@ -60,13 +66,15 @@ function App() {
   return (
     <WalletProvider>
       <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
-          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-            <Router />
-          </WouterRouter>
-          <Toaster />
-          <Sonner theme="dark" position="bottom-right" richColors />
-        </TooltipProvider>
+        <PointsProvider>
+          <TooltipProvider>
+            <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+              <Router />
+            </WouterRouter>
+            <Toaster />
+            <Sonner theme="dark" position="bottom-right" richColors />
+          </TooltipProvider>
+        </PointsProvider>
       </QueryClientProvider>
     </WalletProvider>
   );
