@@ -1,7 +1,7 @@
 import { useAllMarkets, useMarketCount } from "@/hooks/useChain";
 import { Link } from "wouter";
-import { Activity, Clock, Plus, TrendingUp, Zap, Bot, X, Loader2, ThumbsUp, ThumbsDown, Minus } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
+import { Activity, Bot, CalendarX2, Clock, Loader2, Minus, Plus, ThumbsDown, ThumbsUp, TrendingUp, X, Zap } from "lucide-react";
+import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import type { ChainMarket } from "@/hooks/useChain";
 import { useWallet } from "@/lib/wallet";
@@ -11,6 +11,9 @@ import { getSettings } from "./settings";
 
 const API_BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 
+const CATEGORIES = ["All", "Crypto", "Sports", "Politics", "Technology", "Science", "Economics", "Entertainment", "Other"] as const;
+type Category = typeof CATEGORIES[number];
+
 type AIAnalysis = {
   probabilityAssessment: string;
   keyFactors: string[];
@@ -19,6 +22,56 @@ type AIAnalysis = {
   reasoning: string;
 };
 
+function extractCategory(question: string): string {
+  const match = question.match(/^\[([^\]]+)\]/);
+  return match ? match[1] : "Other";
+}
+
+function formatCountdown(endTimeSecs: bigint): string {
+  const nowMs = Date.now();
+  const endMs = Number(endTimeSecs) * 1000;
+  const diffMs = endMs - nowMs;
+  if (diffMs <= 0) return "Closing…";
+  const totalSecs = Math.floor(diffMs / 1000);
+  const days = Math.floor(totalSecs / 86400);
+  const hours = Math.floor((totalSecs % 86400) / 3600);
+  const mins = Math.floor((totalSecs % 3600) / 60);
+  if (days > 0) return `${days}d ${hours}h ${mins}m`;
+  if (hours > 0) return `${hours}h ${mins}m`;
+  return `${mins}m`;
+}
+
+function CountdownTimer({ endTime, status }: { endTime: bigint; status: ChainMarket["status"] }) {
+  const [label, setLabel] = useState(() =>
+    status === "open" ? formatCountdown(endTime) : ""
+  );
+
+  useEffect(() => {
+    if (status !== "open") return;
+    setLabel(formatCountdown(endTime));
+    const id = setInterval(() => setLabel(formatCountdown(endTime)), 30_000);
+    return () => clearInterval(id);
+  }, [endTime, status]);
+
+  const endDate = new Date(Number(endTime) * 1000);
+
+  if (status === "open") {
+    return (
+      <div className="flex items-center gap-1 text-xs text-muted-foreground font-mono">
+        <Clock className="w-3 h-3 shrink-0" />
+        <span>Closes in {label}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-1 text-xs text-muted-foreground font-mono">
+      <CalendarX2 className="w-3 h-3 shrink-0" />
+      <span>Ended {format(endDate, "MMM d, yyyy")}</span>
+    </div>
+  );
+}
+
 export function Home() {
   const { markets, isLoading } = useAllMarkets();
   const { data: marketCount } = useMarketCount();
@@ -26,22 +79,25 @@ export function Home() {
   const settings = getSettings();
   const qc = useQueryClient();
 
-  const openMarkets = markets.filter((m) => m.status === "open");
-  const totalVolume = markets.reduce((s, m) => s + m.totalVolume, 0);
-
+  const [activeTab, setActiveTab] = useState<"active" | "ended">("active");
+  const [categoryFilter, setCategoryFilter] = useState<Category>("All");
   const [aiModal, setAiModal] = useState<{ market: ChainMarket; analysis: AIAnalysis | null; loading: boolean } | null>(null);
 
-  // Auto-expiry: schedule an immediate refetch for each open market exactly
-  // when its endTime arrives, so the status flips to "ended" without waiting
-  // for the next 30-second polling interval.
+  const activeMarkets = markets.filter((m) => m.status === "open");
+  const endedMarkets = markets.filter((m) => m.status !== "open");
+  const totalVolume = markets.reduce((s, m) => s + m.totalVolume, 0);
+
+  const filteredActive = categoryFilter === "All"
+    ? activeMarkets
+    : activeMarkets.filter((m) => extractCategory(m.question) === categoryFilter);
+
+  // Auto-expiry: schedule an immediate refetch exactly when each market closes.
   const expiryTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   useEffect(() => {
     expiryTimersRef.current.forEach(clearTimeout);
     expiryTimersRef.current = [];
-
     const nowMs = Date.now();
-    for (const m of markets) {
-      if (m.status !== "open") continue;
+    for (const m of activeMarkets) {
       const endMs = Number(m.endTime) * 1000;
       const msUntilClose = endMs - nowMs;
       if (msUntilClose <= 0) {
@@ -54,10 +110,8 @@ export function Home() {
       }, msUntilClose);
       expiryTimersRef.current.push(t);
     }
-
-    return () => {
-      expiryTimersRef.current.forEach(clearTimeout);
-    };
+    return () => { expiryTimersRef.current.forEach(clearTimeout); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [markets, qc]);
 
   const openAiInsight = async (market: ChainMarket, e: React.MouseEvent) => {
@@ -94,18 +148,19 @@ export function Home() {
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           {[1, 2, 3].map((i) => <div key={i} className="h-24 bg-muted rounded" />)}
         </div>
+        <div className="h-10 bg-muted rounded w-64" />
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[1, 2, 3, 4].map((i) => <div key={i} className="h-48 bg-muted rounded" />)}
+          {[1, 2, 3, 4].map((i) => <div key={i} className="h-52 bg-muted rounded" />)}
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-10 animate-in fade-in duration-500">
+    <div className="space-y-8 animate-in fade-in duration-500">
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-        <StatCard label="Open Markets" value={openMarkets.length.toString()} icon={<Activity className="w-4 h-4" />} />
+        <StatCard label="Active Markets" value={activeMarkets.length.toString()} icon={<Activity className="w-4 h-4" />} />
         <StatCard label="Total Volume" value={`$${totalVolume.toLocaleString(undefined, { maximumFractionDigits: 0 })}`} icon={<TrendingUp className="w-4 h-4" />} />
         <StatCard label="Total Markets" value={(marketCount ? Number(marketCount) : markets.length).toString()} icon={<Zap className="w-4 h-4" />} />
       </div>
@@ -128,38 +183,90 @@ export function Home() {
         </div>
       )}
 
-      {/* Open Markets */}
-      {openMarkets.length > 0 && (
-        <section>
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2 text-primary">
-              <Activity className="h-5 w-5" />
-              <h2 className="text-lg font-bold uppercase tracking-wider">Open Markets</h2>
-            </div>
+      {markets.length > 0 && (
+        <>
+          {/* Tab bar */}
+          <div className="flex items-center gap-1 border-b border-border">
+            <TabButton
+              active={activeTab === "active"}
+              onClick={() => setActiveTab("active")}
+              label="Active"
+              count={activeMarkets.length}
+              accent
+            />
+            <TabButton
+              active={activeTab === "ended"}
+              onClick={() => setActiveTab("ended")}
+              label="Ended"
+              count={endedMarkets.length}
+            />
             {isConnected && settings.publicMarketCreation && (
-              <Link href="/markets/new" className="flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors uppercase tracking-wider">
+              <Link
+                href="/markets/new"
+                className="ml-auto mb-0.5 flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-primary transition-colors uppercase tracking-wider"
+              >
                 <Plus className="w-3 h-3" /> New
               </Link>
             )}
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {openMarkets.map((m) => (
-              <MarketCard key={m.address} market={m} onAiInsight={openAiInsight} />
-            ))}
-          </div>
-        </section>
-      )}
 
-      {/* Ended/Resolved */}
-      {markets.filter((m) => m.status !== "open").length > 0 && (
-        <section>
-          <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground mb-4">Ended Markets</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {markets.filter((m) => m.status !== "open").map((m) => (
-              <MarketCard key={m.address} market={m} onAiInsight={openAiInsight} />
-            ))}
-          </div>
-        </section>
+          {/* Active tab */}
+          {activeTab === "active" && (
+            <div className="space-y-6">
+              {/* Category filters */}
+              <div className="flex flex-wrap gap-2">
+                {CATEGORIES.map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => setCategoryFilter(cat)}
+                    className={cn(
+                      "px-3 py-1 rounded text-[11px] font-bold uppercase tracking-wider border transition-all",
+                      categoryFilter === cat
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-border text-muted-foreground hover:border-primary/40 hover:text-foreground"
+                    )}
+                  >
+                    {cat}
+                    {cat !== "All" && (
+                      <span className="ml-1 opacity-60">
+                        ({activeMarkets.filter((m) => extractCategory(m.question) === cat).length})
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+
+              {filteredActive.length === 0 ? (
+                <div className="border border-border rounded py-16 text-center text-sm text-muted-foreground">
+                  No active {categoryFilter !== "All" ? categoryFilter : ""} markets right now.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {filteredActive.map((m) => (
+                    <MarketCard key={m.address} market={m} onAiInsight={openAiInsight} />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Ended tab */}
+          {activeTab === "ended" && (
+            <div className="space-y-4">
+              {endedMarkets.length === 0 ? (
+                <div className="border border-border rounded py-16 text-center text-sm text-muted-foreground">
+                  No ended markets yet.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {endedMarkets.map((m) => (
+                    <MarketCard key={m.address} market={m} onAiInsight={openAiInsight} />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </>
       )}
 
       {/* AI Insights Modal */}
@@ -190,7 +297,6 @@ export function Home() {
                 </div>
               ) : aiModal.analysis ? (
                 <div className="space-y-4">
-                  {/* Recommendation badge */}
                   <div className="flex items-center gap-3">
                     <div className={cn(
                       "flex items-center gap-1.5 px-3 py-1.5 rounded font-bold text-sm uppercase tracking-wider",
@@ -217,19 +323,16 @@ export function Home() {
                     </div>
                   </div>
 
-                  {/* Reasoning */}
                   <div className="bg-secondary/30 rounded p-3 border border-border">
                     <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1.5">Summary</div>
                     <p className="text-sm text-foreground leading-relaxed">{aiModal.analysis.reasoning}</p>
                   </div>
 
-                  {/* Probability Assessment */}
                   <div>
                     <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1.5">Probability Assessment</div>
                     <p className="text-sm text-foreground leading-relaxed">{aiModal.analysis.probabilityAssessment}</p>
                   </div>
 
-                  {/* Key Factors */}
                   <div>
                     <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">Key Factors</div>
                     <ul className="space-y-1.5">
@@ -259,6 +362,52 @@ export function Home() {
   );
 }
 
+function TabButton({
+  active,
+  onClick,
+  label,
+  count,
+  accent = false,
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+  count: number;
+  accent?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "relative px-4 pb-3 pt-1 text-xs font-bold uppercase tracking-widest transition-colors",
+        active
+          ? accent
+            ? "text-primary"
+            : "text-foreground"
+          : "text-muted-foreground hover:text-foreground"
+      )}
+    >
+      {label}
+      <span className={cn(
+        "ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-bold",
+        active && accent
+          ? "bg-primary/15 text-primary"
+          : active
+          ? "bg-muted text-foreground"
+          : "bg-muted/50 text-muted-foreground"
+      )}>
+        {count}
+      </span>
+      {active && (
+        <span className={cn(
+          "absolute bottom-0 left-0 right-0 h-px",
+          accent ? "bg-primary" : "bg-foreground"
+        )} />
+      )}
+    </button>
+  );
+}
+
 function StatCard({ label, value, icon }: { label: string; value: string; icon: React.ReactNode }) {
   return (
     <div className="border border-border bg-card p-4 rounded flex flex-col gap-2 hover:border-primary/50 transition-colors">
@@ -279,30 +428,35 @@ function MarketCard({
 }) {
   const yesProb = Math.round(market.yesPrice * 100);
   const noProb = Math.round(market.noPrice * 100);
+  const isOpen = market.status === "open";
   const isResolved = market.status === "resolved_yes" || market.status === "resolved_no";
-  const endDate = new Date(Number(market.endTime) * 1000);
+  const category = extractCategory(market.question);
+  const displayQuestion = market.question.replace(/^\[[^\]]+\]\s*/, "");
 
   return (
     <div className="flex flex-col group">
       <Link
         href={`/markets/${market.address}`}
-        className="block border border-border bg-card rounded-t p-5 hover:border-primary transition-all hover:shadow-[0_0_15px_rgba(0,255,255,0.07)] relative overflow-hidden"
+        className="block border border-border bg-card rounded-t p-5 hover:border-primary transition-all hover:shadow-[0_0_15px_rgba(0,255,255,0.07)] relative overflow-hidden flex-1"
       >
+        {/* Probability bar */}
         <div className="absolute top-0 left-0 w-full h-1 bg-border/50 flex">
           <div className="h-full bg-market-yes transition-all" style={{ width: `${yesProb}%` }} />
           <div className="h-full bg-market-no transition-all" style={{ width: `${noProb}%` }} />
         </div>
 
-        <div className="flex justify-between items-start mb-3 mt-1">
-          <StatusBadge status={market.status} />
-          <div className="flex items-center gap-1 text-xs text-muted-foreground font-mono">
-            <Clock className="w-3 h-3" />
-            {formatDistanceToNow(endDate, { addSuffix: true })}
+        <div className="flex justify-between items-start mb-2 mt-1 gap-2">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <StatusBadge status={market.status} />
+            <span className="text-[10px] font-mono text-muted-foreground/70 uppercase tracking-wider border border-border/50 rounded px-1.5 py-0.5">
+              {category}
+            </span>
           </div>
+          <CountdownTimer endTime={market.endTime} status={market.status} />
         </div>
 
         <h3 className="font-bold text-base mb-4 line-clamp-2 group-hover:text-primary transition-colors leading-snug">
-          {market.question}
+          {displayQuestion}
         </h3>
 
         {isResolved ? (
@@ -312,9 +466,25 @@ function MarketCard({
           )}>
             Resolved: {market.status === "resolved_yes" ? "YES" : "NO"}
           </div>
-        ) : (
+        ) : isOpen ? (
           <div className="flex justify-between items-end">
             <div className="flex gap-4">
+              <div>
+                <div className="text-[10px] text-muted-foreground mb-1 uppercase tracking-wider">Yes</div>
+                <div className="text-xl font-bold text-market-yes font-mono">{yesProb}%</div>
+              </div>
+              <div>
+                <div className="text-[10px] text-muted-foreground mb-1 uppercase tracking-wider">No</div>
+                <div className="text-xl font-bold text-market-no font-mono">{noProb}%</div>
+              </div>
+            </div>
+            <div className="text-xs text-muted-foreground font-mono">
+              ${market.totalVolume.toLocaleString(undefined, { maximumFractionDigits: 0 })} vol
+            </div>
+          </div>
+        ) : (
+          <div className="flex justify-between items-end">
+            <div className="flex gap-4 opacity-60">
               <div>
                 <div className="text-[10px] text-muted-foreground mb-1 uppercase tracking-wider">Yes</div>
                 <div className="text-xl font-bold text-market-yes font-mono">{yesProb}%</div>

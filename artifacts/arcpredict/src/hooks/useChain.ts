@@ -103,14 +103,15 @@ async function fetchMarket(addr: `0x${string}`): Promise<ChainMarket | null> {
     const noToken     = ntRes ? (decodeAbiParameters([{ type: "address" }], ntRes)[0] as `0x${string}`) : "0x" as `0x${string}`;
     const yesWon      = ywRes ? (decodeAbiParameters([{ type: "bool" }],    ywRes)[0] as boolean) : false;
 
-    // Normalize endTime to seconds. Some contracts erroneously store the
-    // value in milliseconds (or worse). Repeatedly divide by 1000 until the
-    // value falls within a plausible range (before year 2100 in seconds).
-    const YEAR_2100_SECS = 4102444800n;
-    let endTime = rawEndTime as bigint;
-    while (endTime > YEAR_2100_SECS && endTime > 1000n) {
-      endTime = endTime / 1000n;
-    }
+    // Normalize endTime to seconds. Contracts sometimes store the value in
+    // milliseconds. Any value >= 10^12 is definitely not a Unix timestamp in
+    // seconds (that would be year ~33,000), so divide by 1000 exactly once.
+    // Valid seconds timestamps (e.g. year 2026 ≈ 1.75e9) are << 10^12 and
+    // pass through unchanged.
+    const MS_THRESHOLD = 1_000_000_000_000n;
+    const endTime = (rawEndTime as bigint) >= MS_THRESHOLD
+      ? (rawEndTime as bigint) / 1000n
+      : (rawEndTime as bigint);
 
     const { yesPrice, noPrice } = computePrices(totalYes, totalNo);
     return {
