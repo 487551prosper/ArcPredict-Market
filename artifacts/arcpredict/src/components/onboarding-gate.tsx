@@ -1,5 +1,5 @@
 import { useState, useEffect, ReactNode } from "react";
-import { Activity, CheckCircle2, Twitter, Wallet, XCircle } from "lucide-react";
+import { CheckCircle2, Twitter, Wallet, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -103,7 +103,7 @@ export function OnboardingGate({ children }: { children: ReactNode }) {
       <div className="w-full max-w-lg">
         {/* Logo */}
         <div className="flex items-center gap-2 text-primary font-bold text-xl mb-10 justify-center">
-          <Activity className="h-6 w-6" />
+          <img src="/logo.png" alt="ArcPredict" className="h-9 w-9 rounded-sm object-cover" />
           ARC_PREDICT
         </div>
 

@@ -1,6 +1,6 @@
 import { ReactNode, useState, useEffect, useCallback } from "react";
 import { Link, useLocation } from "wouter";
-import { Activity, BarChart2, CalendarDays, Moon, Plus, Settings, Sun, Trophy, Wallet, LogOut, AlertTriangle, ChevronDown, Zap } from "lucide-react";
+import { BarChart2, CalendarDays, Moon, Plus, Settings, Sun, Trophy, Wallet, LogOut, AlertTriangle, ChevronDown, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePoints } from "@/contexts/PointsContext";
 
@@ -295,7 +295,7 @@ export function Layout({ children }: { children: ReactNode }) {
               href="/"
               className="flex items-center gap-2 text-primary font-bold text-lg shrink-0"
             >
-              <Activity className="h-5 w-5" />
+              <img src="/logo.png" alt="ArcPredict" className="h-8 w-8 rounded-sm object-cover" />
               <span className="hidden sm:inline">ARC_PREDICT</span>
             </Link>
             <nav className="flex items-center gap-1">
