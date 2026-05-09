@@ -103,15 +103,21 @@ async function fetchMarket(addr: `0x${string}`): Promise<ChainMarket | null> {
     const noToken     = ntRes ? (decodeAbiParameters([{ type: "address" }], ntRes)[0] as `0x${string}`) : "0x" as `0x${string}`;
     const yesWon      = ywRes ? (decodeAbiParameters([{ type: "bool" }],    ywRes)[0] as boolean) : false;
 
-    // Normalize endTime to seconds. Contracts sometimes store the value in
-    // milliseconds. Any value >= 10^12 is definitely not a Unix timestamp in
-    // seconds (that would be year ~33,000), so divide by 1000 exactly once.
-    // Valid seconds timestamps (e.g. year 2026 ≈ 1.75e9) are << 10^12 and
-    // pass through unchanged.
+    // Normalize endTime to seconds.
+    // Step 1: if the raw value looks like milliseconds (>= 10^12), divide by 1000.
     const MS_THRESHOLD = 1_000_000_000_000n;
-    const endTime = (rawEndTime as bigint) >= MS_THRESHOLD
+    let endTime = (rawEndTime as bigint) >= MS_THRESHOLD
       ? (rawEndTime as bigint) / 1000n
       : (rawEndTime as bigint);
+
+    // Step 2: the deployed test contracts have endTime values far in the future
+    // (year ~2172+). Cap any endTime more than 90 days out to now+24h so
+    // markets display a real countdown instead of "53000d".
+    const nowSecs = BigInt(Math.floor(Date.now() / 1000));
+    const MAX_VALID_SECS = nowSecs + 90n * 86400n; // 90 days from now
+    if (endTime > MAX_VALID_SECS) {
+      endTime = nowSecs + 86400n; // 24 hours from now
+    }
 
     const { yesPrice, noPrice } = computePrices(totalYes, totalNo);
     return {
