@@ -52,9 +52,9 @@ export function useTheme() {
   const [isDark, setIsDark] = useState(() => {
     try {
       const saved = localStorage.getItem(THEME_KEY);
-      return saved !== "light";
+      return saved === "dark";
     } catch {
-      return true;
+      return false;
     }
   });
 
@@ -62,10 +62,8 @@ export function useTheme() {
     const html = document.documentElement;
     if (isDark) {
       html.classList.add("dark");
-      html.classList.remove("light");
     } else {
       html.classList.remove("dark");
-      html.classList.add("light");
     }
     try {
       localStorage.setItem(THEME_KEY, isDark ? "dark" : "light");

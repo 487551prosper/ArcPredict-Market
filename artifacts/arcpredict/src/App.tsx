@@ -12,7 +12,7 @@ import { Settings_ } from "@/pages/settings";
 import { CheckIn } from "@/pages/check-in";
 import { Referral } from "@/pages/referral";
 import NotFound from "@/pages/not-found";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { WalletProvider } from "@/lib/wallet";
 import { PointsProvider } from "@/contexts/PointsContext";
 import { OnboardingGate } from "@/components/onboarding-gate";
@@ -49,20 +49,26 @@ function Router() {
 }
 
 function App() {
+  const [isDark, setIsDark] = useState(() => {
+    try { return localStorage.getItem("arcpredict_theme") === "dark"; } catch { return false; }
+  });
+
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem("arcpredict_theme");
-      const html = document.documentElement;
-      if (saved === "light") {
-        html.classList.remove("dark");
-        html.classList.add("light");
-      } else {
-        html.classList.add("dark");
-        html.classList.remove("light");
-      }
-    } catch {
-      document.documentElement.classList.add("dark");
+    const html = document.documentElement;
+    if (isDark) {
+      html.classList.add("dark");
+    } else {
+      html.classList.remove("dark");
     }
+    try { localStorage.setItem("arcpredict_theme", isDark ? "dark" : "light"); } catch {}
+  }, [isDark]);
+
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === "arcpredict_theme") setIsDark(e.newValue === "dark");
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
   }, []);
 
   return (
@@ -74,7 +80,7 @@ function App() {
               <Router />
             </WouterRouter>
             <Toaster />
-            <Sonner theme="dark" position="bottom-right" richColors />
+            <Sonner theme={isDark ? "dark" : "light"} position="bottom-right" richColors />
           </TooltipProvider>
         </PointsProvider>
       </QueryClientProvider>
