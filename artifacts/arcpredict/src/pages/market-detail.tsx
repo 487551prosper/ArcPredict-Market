@@ -121,6 +121,7 @@ export function MarketDetail() {
   const isOpen = market.status === "open";
   const isResolved = market.status === "resolved_yes" || market.status === "resolved_no";
   const endDate = new Date(Number(market.endTime) * 1000);
+  const isFarFuture = (Number(market.endTime) - Date.now() / 1000) > 365 * 86400;
 
   const numAmount = parseFloat(amount);
   const currentPrice = position === "yes" ? market.yesPrice : market.noPrice;
@@ -166,7 +167,10 @@ export function MarketDetail() {
               {isOpen && (
                 <span className="flex items-center gap-1 text-xs text-muted-foreground font-mono">
                   <Clock className="w-3 h-3" />
-                  Closes {formatDistanceToNow(endDate, { addSuffix: true })}
+                  {isFarFuture
+                    ? <>Closes {format(endDate, "MMM d, yyyy")}</>
+                    : <>Closes {formatDistanceToNow(endDate, { addSuffix: true })}</>
+                  }
                 </span>
               )}
             </div>
@@ -183,7 +187,10 @@ export function MarketDetail() {
           <h1 className="text-2xl md:text-3xl font-bold leading-tight">{market.question}</h1>
 
           <div className="text-xs text-muted-foreground font-mono">
-            Closes: {format(endDate, "PPP 'at' p")}
+            {isFarFuture
+              ? <>Closes: {format(endDate, "MMM d, yyyy")}</>
+              : <>Closes: {format(endDate, "PPP 'at' p")}</>
+            }
           </div>
 
           {isResolved && (

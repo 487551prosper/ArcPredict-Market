@@ -27,6 +27,8 @@ function extractCategory(question: string): string {
   return match ? match[1] : "Other";
 }
 
+const FAR_FUTURE_DAYS = 365; // beyond this, show the date instead of a countdown
+
 function formatCountdown(endTimeSecs: bigint): string {
   const nowMs = Date.now();
   const endMs = Number(endTimeSecs) * 1000;
@@ -34,6 +36,8 @@ function formatCountdown(endTimeSecs: bigint): string {
   if (diffMs <= 0) return "Closing…";
   const totalSecs = Math.floor(diffMs / 1000);
   const days = Math.floor(totalSecs / 86400);
+  // If closing is more than a year away show the actual date instead
+  if (days > FAR_FUTURE_DAYS) return "";
   const hours = Math.floor((totalSecs % 86400) / 3600);
   const mins = Math.floor((totalSecs % 3600) / 60);
   if (days > 0) return `${days}d ${hours}h ${mins}m`;
@@ -42,6 +46,9 @@ function formatCountdown(endTimeSecs: bigint): string {
 }
 
 function CountdownTimer({ endTime, status }: { endTime: bigint; status: ChainMarket["status"] }) {
+  const endDate = new Date(Number(endTime) * 1000);
+  const isFarFuture = (Number(endTime) - Date.now() / 1000) > FAR_FUTURE_DAYS * 86400;
+
   const [label, setLabel] = useState(() =>
     status === "open" ? formatCountdown(endTime) : ""
   );
@@ -53,13 +60,14 @@ function CountdownTimer({ endTime, status }: { endTime: bigint; status: ChainMar
     return () => clearInterval(id);
   }, [endTime, status]);
 
-  const endDate = new Date(Number(endTime) * 1000);
-
   if (status === "open") {
     return (
       <div className="flex items-center gap-1 text-xs text-muted-foreground font-mono">
         <Clock className="w-3 h-3 shrink-0" />
-        <span>Closes in {label}</span>
+        {isFarFuture
+          ? <span>Closes {format(endDate, "MMM d, yyyy")}</span>
+          : <span>Closes in {label}</span>
+        }
       </div>
     );
   }

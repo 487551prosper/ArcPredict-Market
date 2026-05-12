@@ -58,3 +58,8 @@ externalPort = 3001
 [[ports]]
 localPort = 25941
 externalPort = 3000
+
+[userenv]
+
+[userenv.shared]
+ANTHROPIC_API_KEY = "Anthropic API key"
