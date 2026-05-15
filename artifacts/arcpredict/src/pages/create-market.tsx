@@ -51,7 +51,9 @@ export function CreateMarket() {
     }
     // Prepend category to question for on-chain storage
     const question = `[${category}] ${title.trim()}`;
-    await createMarket(question, endTimestamp);
+  const nowSeconds = Math.floor(Date.now() / 1000);
+const durationInHours = Math.floor((endTimestamp - nowSeconds) / 3600);
+await createMarket(question, durationInHours);
   };
 
   // Minimum datetime = 1 hour from now (datetime-local format: "YYYY-MM-DDTHH:MM")
