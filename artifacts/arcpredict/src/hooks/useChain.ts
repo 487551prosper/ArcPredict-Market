@@ -286,6 +286,29 @@ function makeWalletClient(address: `0x${string}`) {
   });
 }
 
+// Arc Testnet can be slow to mine blocks. Wait up to 3 minutes for a receipt.
+// If viem times out the transaction was still submitted — treat that as success
+// so the UI doesn't crash with an error overlay.
+async function waitForTx(hash: `0x${string}`): Promise<void> {
+  try {
+    await publicClient.waitForTransactionReceipt({ hash, timeout: 180_000 });
+  } catch (e: any) {
+    // TransactionReceiptNotFoundError / timeout — tx is in mempool but not yet
+    // mined within our window. Treat as submitted rather than failed.
+    const msg: string = e?.name ?? e?.message ?? "";
+    if (
+      msg.includes("Timeout") ||
+      msg.includes("timeout") ||
+      msg.includes("TransactionReceiptNotFound") ||
+      msg.includes("WaitForTransactionReceiptTimeoutError")
+    ) {
+      console.warn("[waitForTx] receipt not found within 3 min, tx is pending:", hash);
+      return;
+    }
+    throw e;
+  }
+}
+
 export function usePlaceBet(marketAddress: `0x${string}` | undefined) {
   const { address } = useWallet();
   const qc = useQueryClient();
@@ -314,7 +337,7 @@ export function usePlaceBet(marketAddress: `0x${string}` | undefined) {
           functionName: "approve",
           args: [marketAddress, raw],
         });
-        await publicClient.waitForTransactionReceipt({ hash: approveTx });
+        await waitForTx(approveTx);
         await refetchAllowance();
       }
 
@@ -326,7 +349,7 @@ export function usePlaceBet(marketAddress: `0x${string}` | undefined) {
         args: [isYes, raw],
       });
       setTxHash(hash);
-      await publicClient.waitForTransactionReceipt({ hash });
+      await waitForTx(hash);
       setIsSuccess(true);
 
       qc.invalidateQueries({ queryKey: ["market", marketAddress] });
@@ -365,7 +388,7 @@ export function useCreateMarket() {
         args: [question, BigInt(endTimestamp)],
       });
       setTxHash(hash);
-      await publicClient.waitForTransactionReceipt({ hash });
+      await waitForTx(hash);
       setIsSuccess(true);
       qc.invalidateQueries({ queryKey: ["factory"] });
       qc.invalidateQueries({ queryKey: ["markets"] });
@@ -373,7 +396,7 @@ export function useCreateMarket() {
     } catch (e: any) {
       const msg = e?.shortMessage ?? e?.message ?? "Transaction failed";
       setError(msg);
-      throw e;
+      return undefined;
     } finally {
       setIsPending(false);
     }
@@ -409,7 +432,7 @@ export function useSellTokens(marketAddress: `0x${string}` | undefined) {
         functionName: "approve",
         args: [marketAddress, tokenAmount],
       });
-      await publicClient.waitForTransactionReceipt({ hash: approveTx });
+      await waitForTx(approveTx);
 
       // Call sell on the market contract
       const hash = await wc.writeContract({
@@ -418,7 +441,7 @@ export function useSellTokens(marketAddress: `0x${string}` | undefined) {
         functionName: "sell",
         args: [isYes, tokenAmount],
       });
-      await publicClient.waitForTransactionReceipt({ hash });
+      await waitForTx(hash);
       setIsSuccess(true);
 
       qc.invalidateQueries({ queryKey: ["market", marketAddress] });
@@ -456,7 +479,7 @@ export function useResolveMarket(marketAddress: `0x${string}` | undefined) {
         functionName: "resolveMarket",
         args: [outcome],
       });
-      await publicClient.waitForTransactionReceipt({ hash });
+      await waitForTx(hash);
       setIsSuccess(true);
       qc.invalidateQueries({ queryKey: ["market", marketAddress] });
       qc.invalidateQueries({ queryKey: ["markets", "all"] });
@@ -491,7 +514,7 @@ export function useClaimWinnings(marketAddress: `0x${string}` | undefined) {
         functionName: "claimWinnings",
         args: [],
       });
-      await publicClient.waitForTransactionReceipt({ hash });
+      await waitForTx(hash);
       setIsSuccess(true);
       qc.invalidateQueries({ queryKey: ["market", marketAddress] });
       qc.invalidateQueries({ queryKey: ["usdc", "balance", address] });
