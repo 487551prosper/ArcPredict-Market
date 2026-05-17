@@ -91,7 +91,7 @@ export function Home() {
   const [categoryFilter, setCategoryFilter] = useState<Category>("All");
   const [aiModal, setAiModal] = useState<{ market: ChainMarket; analysis: AIAnalysis | null; loading: boolean } | null>(null);
 
-  const activeMarkets = markets.filter((m) => m.status === "open");
+  const activeMarkets = markets.filter((m) => m.status === "open" && Number(m.endTime) < 4102444800);
   const endedMarkets = markets.filter((m) => m.status !== "open");
   const totalVolume = markets.reduce((s, m) => s + m.totalVolume, 0);
 
